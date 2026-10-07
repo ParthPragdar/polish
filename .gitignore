@@ -1,0 +1,43 @@
+# Swift Package Manager and generated app bundles
+/.build/
+/.swiftpm/
+/dist/
+/DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# macOS metadata and local editor state
+.DS_Store
+._*
+.AppleDouble/
+.LSOverride
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local configuration, credentials, and signing material
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
+
+# Logs, test output, and crash reports
+*.log
+*.crash
+*.dSYM/
+*.xcresult/
+coverage/
+
+# Exported user history must never be published
+history.json

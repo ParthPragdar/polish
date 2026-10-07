@@ -1,0 +1,48 @@
+name: macOS CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-package:
+    name: Build, test, and package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain information
+        run: |
+          swift --version
+          xcode-select -p
+      - name: Validate metadata and script
+        run: |
+          plutil -lint Resources/Info.plist
+          bash -n scripts/build-app.sh
+          git diff --check
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+      - name: Package and verify local app
+        env:
+          SIGN_IDENTITY: '-'
+        run: |
+          ./scripts/build-app.sh
+          plutil -lint dist/Polish.app/Contents/Info.plist
+          codesign --verify --deep --strict dist/Polish.app

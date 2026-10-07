@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a focused improvement to Polish.
+title: '[Feature] '
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe what you are trying to do, without sharing private drafts or credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed improvement
+      description: Describe the desired behavior and any alternatives you considered.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Relevant macOS/destination-app information, privacy considerations, or synthetic examples.
