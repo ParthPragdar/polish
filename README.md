@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/banner.png" alt="Polish: the Activity window showing rewrites by weekday, and a review popup highlighting grammar corrections" width="100%">
+</p>
+
 # Polish
 
 **Fix grammar and sharpen AI prompts in any Mac app, with one shortcut.**
@@ -14,6 +18,27 @@ Polish is a small, native menu-bar app. Select text in Mail, Slack, Chrome, an A
 - **Review or auto-apply.** Edit the result in a small popup before applying, or let Polish replace the text directly.
 - **Stays out of the way.** No account, no backend server, no analytics, no microphone. It never presses Return or sends a message for you, and the app's normal Undo still works.
 - **Local history** of your last 80 rewrites, plus configurable shortcuts and launch at login.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/activity.png" alt="Activity screen: a radar chart of rewrites per weekday with a tooltip for Tuesday, and totals for words polished, grammar fixes, and prompts refined"></td>
+    <td width="50%"><img src="docs/images/history.png" alt="History screen: a month calendar tinted by rewrite type, and a saved rewrite open in the Changes view"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Activity</b>: when and where you polish your writing</td>
+    <td align="center"><b>History</b>: every saved rewrite by day, with search</td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/images/review.png" width="460" alt="Review popup in the Changes view: removed words struck through in red, added words in green, with Copy and Apply rewrite buttons">
+  <br>
+  <b>Review</b>: see exactly what changed, edit if needed, then apply with Return
+</p>
+
+<sub>Screenshots use sample text.</sub>
 
 ## Install
 

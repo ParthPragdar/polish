@@ -170,7 +170,11 @@ struct HeaderIconButton: View {
 func diffText(original: String, result: String) -> Text? {
     guard let changes = WordDiff.changes(from: original, to: result) else { return nil }
     var text = AttributedString()
+    var previousWasRemoval = false
     for change in changes {
+        // Keep a replacement from running into the struck-out word it replaces ("has" → "have").
+        if previousWasRemoval, case .added = change { text += AttributedString("\u{2009}") }
+        if case .removed = change { previousWasRemoval = true } else { previousWasRemoval = false }
         switch change {
         case .same(let value):
             text += AttributedString(value)
