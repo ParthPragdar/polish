@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish universal app
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check tag matches app version
+        id: version
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
+          if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Info.plist version $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Test
+        run: swift test
+      - name: Build universal app
+        env:
+          UNIVERSAL: '1'
+          SIGN_IDENTITY: '-'
+        run: |
+          ./scripts/build-app.sh
+          lipo -archs dist/Polish.app/Contents/MacOS/Polish | grep -q 'x86_64 arm64\|arm64 x86_64'
+      - name: Package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd dist
+          ditto -c -k --keepParent Polish.app "Polish-$VERSION.zip"
+          shasum -a 256 "Polish-$VERSION.zip" > "Polish-$VERSION.zip.sha256"
+      - name: Write release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Use this version's CHANGELOG section, followed by install instructions.
+          awk -v heading="## [$VERSION]" 'index($0, heading) == 1 { found = 1; next } found && /^## \[/ { exit } found && !/^\[[^]]+\]: /' CHANGELOG.md > dist/notes.md
+          if [[ ! -s dist/notes.md ]]; then
+            echo "::error::CHANGELOG.md has no section for $VERSION"
+            exit 1
+          fi
+          cat >> dist/notes.md <<'EOF'
+
+          ### Install
+
+          Download `Polish-*.zip`, unzip it, and move **Polish.app** to Applications. This build is not notarized, so on first launch macOS will block it: on macOS 15+, click **Done**, then **System Settings → Privacy & Security → Open Anyway**; on macOS 14, Control-click the app and choose **Open**. See the [README](https://github.com/ParthPragdar/polish#set-up) for setup.
+
+          Universal build for Apple Silicon and Intel · macOS 14 or later.
+          EOF
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/Polish-$VERSION.zip" "dist/Polish-$VERSION.zip.sha256" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Polish $VERSION" --notes-file dist/notes.md

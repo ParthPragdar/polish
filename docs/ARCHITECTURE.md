@@ -7,7 +7,7 @@ Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDel
 | File | Responsibility |
 | --- | --- |
 | `Sources/Polish/App.swift` | Lifecycle, menu, task state, result delivery, floating panels |
-| `Sources/Polish/Settings.swift` | UserDefaults, Keychain, Carbon global hotkeys |
+| `Sources/Polish/Settings.swift` | UserDefaults, Keychain, launch-at-login item, Carbon global hotkeys |
 | `Sources/Polish/TextAccess.swift` | Accessibility capture, target validation, copy/paste, clipboard restoration |
 | `Sources/Polish/Views.swift` | Settings, editable result popup, shortcut recorder |
 | `Sources/Polish/HistoryView.swift` | History list, details, Copy, confirmed clearing |

@@ -1,6 +1,7 @@
 import AppKit
 import Carbon
 import Security
+import ServiceManagement
 import SwiftUI
 
 struct Shortcut: Codable, Equatable {
@@ -35,6 +36,8 @@ enum Keychain {
         guard SecItemCopyMatching(q as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return "" }
         return String(decoding: data, as: UTF8.self)
     }
+    /// Checks for the item without reading its secret, so a rebuilt app never triggers a Keychain prompt at launch.
+    static var hasKey: Bool { SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess }
     static func save(_ key: String) throws {
         if key.isEmpty { SecItemDelete(query as CFDictionary); return }
         let data = Data(key.utf8)
@@ -45,6 +48,14 @@ enum Keychain {
             status = SecItemAdd(q as CFDictionary, nil)
         }
         guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
+    }
+}
+
+/// The system's login-item registration is the source of truth; nothing is mirrored in UserDefaults.
+enum LoginItem {
+    static var status: SMAppService.Status { SMAppService.mainApp.status }
+    static func set(_ enabled: Bool) throws {
+        if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
     }
 }
 

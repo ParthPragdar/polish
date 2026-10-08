@@ -2,13 +2,11 @@
 
 ## Supported versions
 
-Polish is an early-stage project. Security fixes target the latest source on the default branch; older snapshots and locally built binaries do not have a separate maintenance commitment. Update and rebuild to obtain fixes.
+Polish is an early-stage project. Security fixes are made on the `main` branch and shipped in the next [release](https://github.com/ParthPragdar/polish/releases); older versions are not patched separately. Update to the latest release to get fixes.
 
 ## Reporting a vulnerability
 
-Do not disclose API keys, private text, or exploitable vulnerabilities in public issues or pull requests. Use this repository's **Security → Advisories → Report a vulnerability** feature to contact the maintainers privately. The maintainer must enable private vulnerability reporting before publication, as described in the [release checklist](docs/RELEASE_CHECKLIST.md).
-
-If that feature is unavailable, use a private contact method explicitly listed by the repository owner on their GitHub profile. If no private route is listed, open an issue asking for a security contact without including exploit details or private data.
+Do not disclose API keys, private text, or exploitable vulnerabilities in public issues or pull requests. Report it privately through [**Security → Report a vulnerability**](https://github.com/ParthPragdar/polish/security/advisories/new) on this repository. Only the maintainer can see these reports.
 
 Include the affected commit/version, macOS version, reproduction steps with synthetic text, expected/actual behavior, and potential impact. Remove credentials and personal data from all evidence. There is no guaranteed response time or bug bounty.
 

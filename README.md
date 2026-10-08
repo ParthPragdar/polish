@@ -1,151 +1,90 @@
-# Polish for macOS
+# Polish
 
-Polish is a native menu-bar app that corrects grammar and refines AI prompts in the app where you are already typing. Select a passage, press a shortcut, and review the rewrite or apply it automatically.
+**Fix grammar and sharpen AI prompts in any Mac app, with one shortcut.**
 
-Built with SwiftUI and AppKit for **macOS 14 or later**, using the Gemini Live API. No third-party Swift dependencies, backend server, or microphone access are required. The current version is **0.1.0**; compatibility with individual editors is best effort.
+[![macOS CI](https://github.com/ParthPragdar/polish/actions/workflows/ci.yml/badge.svg)](https://github.com/ParthPragdar/polish/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/ParthPragdar/polish?sort=semver)](https://github.com/ParthPragdar/polish/releases/latest)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Features
+Polish is a small, native menu-bar app. Select text in Mail, Slack, Chrome, an AI chat, or almost any editor, press a shortcut, and Polish rewrites it in place using Google's Gemini Live API with your own API key.
 
-- Correct spelling, grammar, punctuation, and phrasing while preserving the writer's voice.
-- Turn a rough request into a clearer AI prompt.
-- Rewrite a selection, or the whole focused field when it can be read safely.
-- Review and edit results before applying, or enable automatic replacement.
-- Configure global keyboard shortcuts.
-- Position loading and result panels near the editor across multiple displays.
-- Copy results and browse the latest 80 completed rewrites locally.
-- Cancel requests and reject replacements when the original field or draft changes.
+- **⌥⌘G — Correct grammar.** Fixes spelling, grammar, and punctuation while keeping your tone, language, and formatting.
+- **⌥⌘P — Refine prompt.** Turns a rough request into a clear, well-structured prompt for an AI assistant, without inventing details.
+- **Review or auto-apply.** Edit the result in a small popup before applying, or let Polish replace the text directly.
+- **Stays out of the way.** No account, no backend server, no analytics, no microphone. It never presses Return or sends a message for you, and the app's normal Undo still works.
+- **Local history** of your last 80 rewrites, plus configurable shortcuts and launch at login.
 
-Polish pastes through the destination app's normal paste action. It never presses Return or submits a message, and the destination app's usual Undo remains available. AI output can still change meaning: review important text before using it.
+## Install
 
-## Requirements
+1. Download `Polish-<version>.zip` from the [latest release](https://github.com/ParthPragdar/polish/releases/latest) and unzip it.
+2. Move **Polish.app** to your **Applications** folder.
+3. Open it. Polish isn't notarized by Apple yet, so macOS blocks the first launch:
+   - **macOS 15 or later:** click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Polish.
+   - **macOS 14:** Control-click Polish.app, choose **Open**, then confirm **Open**.
 
-| Requirement | Details |
+Release builds are universal and run on Apple Silicon and Intel Macs. If you prefer, [build it from source](#build-from-source).
+
+## Set up
+
+Polish opens its Settings window until setup is complete. After that it lives in the menu bar (the **text-with-checkmark** icon).
+
+1. **Add a Gemini API key.** Create one in [Google AI Studio](https://aistudio.google.com/apikey), then paste it in **Settings → Gemini Live** and click **Save key**. The key is stored in your macOS Keychain. Gemini API usage may be billed by Google depending on your plan.
+2. **Allow Accessibility access.** In **Settings → General**, click **Open Accessibility Settings** and turn on Polish. This lets it read the text you select and paste the rewrite back. Reopen Polish if macOS asks.
+3. **Optional:** turn on **Launch at login**, choose **Review before applying** or **Apply automatically**, and change the shortcuts in **Settings → Shortcuts**.
+
+The default model is `gemini-3.8-live`. You can change it in **Settings → Gemini Live** to any [Live API model](https://ai.google.dev/gemini-api/docs/models) your key can use; enter the bare ID without `models/`.
+
+## Use
+
+1. Select text in any app. If nothing is selected, Polish uses the whole focused text field when it can read it.
+2. Press **⌥⌘G** to correct grammar or **⌥⌘P** to refine a prompt. A small indicator appears while Gemini works; use its cancel button to stop.
+3. In review mode, edit the result if you like, then press **Return** to apply or click **Copy**. In automatic mode the text is replaced directly.
+
+Recent rewrites are in the menu-bar menu, and the full list is in **Settings → History**.
+
+Polish only replaces text if the same app, field, and draft are still there; if you kept typing or switched windows, it keeps the result in History and offers to copy it instead. Inputs are limited to 12,000 characters. AI output can still change meaning, so review important text.
+
+## Privacy
+
+- Each rewrite sends only the selected or focused text, directly from your Mac to Google's Gemini API. No screenshots, audio, app names, or history are sent, and Polish has no analytics.
+- Fields that macOS marks as password fields are never read. Other fields can still contain sensitive text, so choose what you rewrite.
+- The API key is kept in Keychain. History (original text, result, app name, time) is stored unencrypted at `~/Library/Application Support/Polish/history.json` and can be cleared from **Settings → History**.
+
+Details: [privacy and local storage](docs/PRIVACY.md). Google's handling of API requests is covered by the [Gemini API terms](https://ai.google.dev/gemini-api/terms).
+
+## Troubleshooting
+
+| Problem | Fix |
 | --- | --- |
-| Operating system | macOS 14 Sonoma or newer; Windows and Linux are unsupported |
-| Toolchain | Swift 5.10 or newer; Xcode 15.3 or newer, or compatible Xcode Command Line Tools |
-| Hardware | Apple Silicon or Intel Mac; local builds target the current Mac's architecture |
-| API access | Your own Google AI Studio API key with access to a compatible Gemini Live model |
-| Permission | Accessibility access for the packaged `Polish.app` |
-| Network | HTTPS/WSS access to Google's Gemini API; API usage charges and quotas may apply |
+| Accessibility shows **Required** after an update or rebuild | Remove Polish from System Settings → Privacy & Security → Accessibility, add the new copy, then reopen Polish. |
+| "No editor detected" | Click inside the text field and select the text explicitly. Chrome and Electron apps can take a moment to expose text. Terminals, remote desktops, and canvas-based editors may not be supported. |
+| Gemini request failed | Check your connection, saved key, model ID, quota, and billing in AI Studio. Requests time out after 60 seconds. |
+| A shortcut does nothing | Another app may already use it. Record a different combination in Settings → Shortcuts. |
+| Keychain asks for permission | Allow it. This can happen once after installing a new build. |
 
-Building, running unit tests, and previewing the UI do not require an API key or Accessibility access. Rewriting text requires both.
+To try the UI without a key or permissions, use **Settings → General → Preview result popup**, or run `/Applications/Polish.app/Contents/MacOS/Polish --demo`.
 
-## Installation from source
+## Build from source
 
-There is no prebuilt download assumed by this guide. Install the Xcode tools first if needed:
-
-```sh
-xcode-select --install
-swift --version
-xcode-select -p
-```
-
-If you use full Xcode, complete its first-launch setup before building. Download this repository using GitHub's **Code → Download ZIP**, or copy its HTTPS clone URL from **Code** and run:
+Requires macOS 14 or later and Xcode 15.3+ (or the Xcode Command Line Tools with Swift 5.10+). There are no third-party dependencies.
 
 ```sh
-git clone https://github.com/ParthPragdar/polish.git polish
+git clone https://github.com/ParthPragdar/polish.git
 cd polish
-swift build
 swift test
 ./scripts/build-app.sh
 open dist/Polish.app
 ```
 
-For a ZIP download, open Terminal in the extracted project folder and start at `swift build`.
+`build-app.sh` builds a release binary for your Mac's architecture, assembles `dist/Polish.app`, and signs it ad hoc for local use. Set `UNIVERSAL=1` for an Apple Silicon + Intel build (needs full Xcode), or `SIGN_IDENTITY` to sign with your own certificate.
 
-The script compiles a release executable, generates the app icon, assembles `dist/Polish.app`, and ad-hoc signs and verifies the bundle for local use. Build products are ignored by Git. For regular use, quit Polish, move the bundle to a stable location such as Applications, and reopen it there before granting Accessibility access. A local build is not a notarized download for other users; see the [release checklist](docs/RELEASE_CHECKLIST.md) for binary distribution.
+See [architecture](docs/ARCHITECTURE.md) for how capture, the Gemini Live protocol, and safe replacement work, and [releasing](docs/RELEASING.md) for publishing a new version.
 
-## Setup
+## Contributing
 
-1. Open **Settings → Gemini Live** from Polish's menu-bar menu.
-2. Create your own key in [Google AI Studio](https://aistudio.google.com/apikey), paste it into **Gemini API key**, and click **Save key**. The key is stored in macOS Keychain.
-3. Confirm the **Live model** is available to your Google project. The default is `gemini-3.8-live`; enter a bare model ID without `models/`. Check Google's [model catalog](https://ai.google.dev/gemini-api/docs/models) and [Live API guide](https://ai.google.dev/gemini-api/docs/live-api) if access or availability changes.
-4. In **General**, click **Open Accessibility Settings**. Enable Polish under **System Settings → Privacy & Security → Accessibility**, adding the packaged app if needed. Quit and reopen Polish if macOS requests it.
-5. Keep **Review before applying**, the default, or choose **Apply automatically**.
+Bug reports, compatibility notes for specific apps, and focused pull requests are welcome. Please read the [contribution guide](CONTRIBUTING.md) and use synthetic text — never real drafts, history, or API keys — in issues and screenshots. Report security problems privately as described in [SECURITY.md](SECURITY.md).
 
-### Configuration
+## License
 
-| Setting | How it is configured | Storage |
-| --- | --- | --- |
-| Gemini API key | Settings → Gemini Live → Save key / Remove saved key | Keychain service `app.polish.mac`, account `gemini-api-key` |
-| Live model | Settings → Gemini Live | UserDefaults; default `gemini-3.8-live` |
-| Apply preference | Settings → General | UserDefaults; review is the default |
-| Shortcuts | Settings → Shortcuts | UserDefaults |
-| Build directory | Optional `BUILD_PATH` environment variable for the packaging script | Defaults to this checkout's `.build/` |
-| Signing identity | Optional `SIGN_IDENTITY` environment variable for the packaging script | Defaults to `-` (local ad-hoc signing) |
-
-The app does **not** read `.env` files or environment variables for its API key/model. No secret-bearing configuration file belongs in the repository. Enter keys only through Settings; do not embed a shared key in a source build or release. A harmless build configuration example is:
-
-```sh
-BUILD_PATH="$PWD/.build" SIGN_IDENTITY="-" ./scripts/build-app.sh
-```
-
-## Usage
-
-Write in another app, then select the text you want to rewrite. If nothing is selected, Polish uses the current field when it can read and verify its contents.
-
-| Default shortcut | Action |
-| --- | --- |
-| Option–Command–G (`⌥⌘G`) | Correct grammar |
-| Option–Command–P (`⌥⌘P`) | Refine prompt |
-
-In review mode, edit the returned text if needed and choose **Apply rewrite** or **Copy**. Apply is the default Return/Enter action when the preview opens; clicking inside the editor allows further editing. In automatic mode, a successful rewrite replaces the original directly. If replacement cannot be verified, the result stays in History and a notice offers Copy or View in History.
-
-Open **History** to inspect originals and results or copy a result. **Clear history** removes saved entries. Closing Settings keeps Polish running in the menu bar; choose **Quit Polish** to exit.
-
-### Preview without an API key
-
-Use **General → Preview result popup** or **Preview loading** to inspect the UI. A result preview is also available from Terminal:
-
-```sh
-dist/Polish.app/Contents/MacOS/Polish --demo
-```
-
-Apply in this demo only dismisses the sample result. It does not change another app or save history. Screenshots are not included yet; this preview provides synthetic text suitable for capturing them without exposing real drafts or API settings.
-
-## Privacy and safety
-
-Each rewrite sends the requested selection or field contents to Google over a Live WebSocket connection. The app sends no screenshots or microphone audio and does not implement analytics. Password fields identified as secure by Accessibility are excluded; ordinary text fields can still contain secrets, so choose what you rewrite carefully.
-
-The API key is sent in a request header, stored in Keychain, and is not intentionally written to logs or history. Temporary copy/paste operations restore the prior clipboard if it has not changed; explicit **Copy** leaves the result on the clipboard. Clipboard managers may retain copied text.
-
-The latest 80 completed rewrites include the **original, result, source application, and timestamp** in local plaintext at `~/Library/Application Support/Polish/history.json`. Owner-only file permissions do not encrypt this data. Completed rewrites are saved even if you dismiss review or automatic application fails. Polish does not sync history, but your backups may contain it. See [privacy and storage details](docs/PRIVACY.md).
-
-## Compatibility and troubleshooting
-
-- **Accessibility still says Required:** after a rebuild, remove the stale Polish entry from Accessibility Settings, add the newly built app, and reopen it. Ad-hoc signatures can change between builds. Keychain may also request access approval for a rebuilt executable.
-- **No editor detected:** click inside the draft and select text explicitly. Chromium/Electron accessibility trees can take time to appear. Custom canvases, terminals, remote desktops, and individual web editors may be unsupported.
-- **Draft or field changed:** return to the original field and retry, or copy the result. Automatic mode does not switch back to another app to replace text.
-- **Gemini request failed:** check connectivity, saved key, model access, project quota, and billing. Requests have a 60-second deadline. A response without the required structured rewrite is rejected.
-- **Shortcut conflict:** choose two distinct shortcuts in Settings. Recording requires Command or Control with a supported character key; Escape cancels recording.
-- **Build fails:** confirm the selected toolchain supports Swift 5.10+ and macOS 14+. The project cannot build against Linux or Windows SDKs.
-
-Inputs are limited to 12,000 UTF-16 code units. Rich-text formatting and Undo behavior depend on the destination editor. Clipboard restoration waits 700 ms; unusually slow paste handlers may need adjustment. Cross-app behavior and live API access require manual verification.
-
-## Development and project structure
-
-Open `Package.swift` in Xcode, or use the build commands above. `PolishCoreTests` cover response validation, UTF-16 selection bounds, history persistence, focus retries, cancellation, delivery modes, and popup geometry without contacting Google or manipulating another app. CI builds, tests, packages, and verifies the app on macOS; it does not run live API or Accessibility scenarios.
-
-```text
-Package.swift                 Swift package; no external dependencies
-Sources/
-  Polish/                     Menu bar, settings, UI, Keychain, shortcuts, Accessibility
-  PolishCore/                 Gemini Live client and testable rewrite/history/geometry logic
-Tests/
-  PolishCoreTests/            Unit tests
-  Fixtures/editor.html        Disposable browser editor for manual testing
-Resources/Info.plist          App metadata and minimum macOS version
-scripts/
-  build-app.sh                Release app packaging and local signing
-  make-icon.swift             Procedural icon generation
-.github/                      CI, issue forms, PR template, action updates
-docs/                         Architecture, privacy, and release guidance
-```
-
-See [architecture](docs/ARCHITECTURE.md) for the Live protocol and replacement flow, [CONTRIBUTING.md](CONTRIBUTING.md) for development conventions, and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Before distributing a version, complete the [release checklist](docs/RELEASE_CHECKLIST.md).
-
-## Contributing and license
-
-Bug reports, documentation improvements, compatibility fixes, and focused pull requests are welcome. Use synthetic text in reports and screenshots, and follow the [contribution guide](CONTRIBUTING.md) and [community guidelines](CODE_OF_CONDUCT.md).
-
-Developed by **Parth Pragdar**. Licensed under the [MIT License](LICENSE). Gemini API access is governed separately by Google's terms; this project is not affiliated with Google.
+[MIT](LICENSE) © 2026 Parth Pragdar. Polish is an independent project and is not affiliated with or endorsed by Google.

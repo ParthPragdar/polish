@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import Carbon
 import Combine
+import ServiceManagement
 import SwiftUI
 
 private let accent = PolishDesign.accent
@@ -14,6 +15,9 @@ struct SettingsView: View {
     @State private var key = ""
     @State private var keyMessage = ""
     @State private var trusted = TextAccess.trusted
+    @State private var loginStatus = LoginItem.status
+    @State private var loginMessage = ""
+    private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development build"
     private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -40,6 +44,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Developed by").font(.system(size: 10)).foregroundStyle(.secondary)
                         Text("Parth Pragdar").font(.system(size: 12, weight: .semibold))
+                        Text("Version \(Self.version)").font(.system(size: 10)).foregroundStyle(.secondary).padding(.top, 4)
                     }
                 }.padding(.bottom, 24)
             }.padding(.horizontal, 22).frame(width: 195).background(canvas)
@@ -61,7 +66,7 @@ struct SettingsView: View {
         .frame(width: 800, height: 610).tint(accent)
         .buttonStyle(PolishButtonStyle())
         .preferredColorScheme(.light)
-        .onReceive(timer) { _ in trusted = TextAccess.trusted }
+        .onReceive(timer) { _ in trusted = TextAccess.trusted; loginStatus = LoginItem.status }
     }
     private func nav(_ title: String, _ symbol: String) -> some View {
         Button { controller.settingsSection = title } label: {
@@ -98,6 +103,22 @@ struct SettingsView: View {
                 }
                 Text("Lets Polish read the focused text and paste the rewrite back into your app.").font(.system(size: 12)).foregroundStyle(.secondary)
                 if !trusted { Button("Open Accessibility Settings") { TextAccess.openAccessibilitySettings() } }
+            }.padding(18).background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 13) {
+                Toggle(isOn: Binding(get: { loginStatus == .enabled || loginStatus == .requiresApproval }, set: { enabled in
+                    do { try LoginItem.set(enabled); loginMessage = "" }
+                    catch { loginMessage = "macOS couldn’t update the login item. Move Polish to Applications and try again." }
+                    loginStatus = LoginItem.status
+                })) {
+                    Label("Launch at login", systemImage: "power").fontWeight(.medium)
+                }.toggleStyle(.switch)
+                if loginStatus == .requiresApproval {
+                    Text("Allow Polish in System Settings → General → Login Items.").font(.system(size: 12)).foregroundStyle(.orange)
+                } else if !loginMessage.isEmpty {
+                    Text(loginMessage).font(.system(size: 12)).foregroundStyle(.orange)
+                } else {
+                    Text("Keeps Polish in the menu bar after you restart your Mac.").font(.system(size: 12)).foregroundStyle(.secondary)
+                }
             }.padding(18).background(Color.white, in: RoundedRectangle(cornerRadius: 12))
             Label("Select a passage, or leave the cursor in a field to rewrite all its text.", systemImage: "cursorarrow.click.2").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 10) {

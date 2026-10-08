@@ -27,8 +27,8 @@ For a larger feature or architectural change, discuss the problem in an issue be
 - Explain non-obvious Accessibility, clipboard, concurrency, and protocol constraints in comments. Avoid comments that repeat the code.
 - Preserve draft/focus checks, secure-field exclusion, cancellation, clipboard restoration, and structured-output validation.
 - Add meaningful tests when logic changes. Documentation-only changes do not need artificial tests.
-- Run `swift test` and package the app for source/build changes. Use the relevant [manual checks](docs/RELEASE_CHECKLIST.md#manual-app-checks) when UI, Accessibility, clipboard, or API behavior changes.
-- Document configuration or behavioral changes, including privacy effects.
+- Run `swift test` and package the app for source/build changes. Use the relevant [manual checks](docs/RELEASING.md#manual-app-checks) when UI, Accessibility, clipboard, or API behavior changes.
+- Document configuration or behavioral changes, including privacy effects, and add user-visible changes to [CHANGELOG.md](CHANGELOG.md).
 
 CI uses macOS runners without API or signing secrets. Never change a pull-request workflow to use `pull_request_target` to execute contributed code with privileges. GitHub actions are pinned to commit SHAs; review Dependabot updates before merging them.
 

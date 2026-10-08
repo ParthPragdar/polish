@@ -37,7 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu(menu)
         controller.registerHotkeys()
         controller.hotkeys.onPress = { [weak self] id in self?.controller.run(id == 0 ? .grammar : .prompt) }
-        controller.showSettings()
+        // Stay in the menu bar when launched at login; open Settings only while setup is incomplete.
+        if !TextAccess.trusted || !Keychain.hasKey || CommandLine.arguments.contains("--demo") { controller.showSettings() }
         if CommandLine.arguments.contains("--demo") { controller.showDemo() }
     }
     func menuWillOpen(_ menu: NSMenu) { rebuildMenu(menu) }

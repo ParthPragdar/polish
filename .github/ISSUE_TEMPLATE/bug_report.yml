@@ -11,7 +11,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: macOS, Polish version/commit, destination app/version, Swift/Xcode version if building from source, and review/automatic mode.
+      description: macOS version, Polish version (shown in the Settings sidebar) or commit, destination app/version, Swift/Xcode version if building from source, and review/automatic mode.
     validations:
       required: true
   - type: textarea

@@ -11,6 +11,6 @@
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>LSUIElement</key><true/>
-<key>NSHumanReadableCopyright</key><string>Developed by Parth Pragdar</string>
+<key>NSHumanReadableCopyright</key><string>Copyright © 2026 Parth Pragdar. MIT License.</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
