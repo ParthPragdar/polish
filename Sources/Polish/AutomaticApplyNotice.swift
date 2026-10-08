@@ -21,7 +21,7 @@ struct AutomaticApplyNotice: View {
                 Button("View in History") { controller.openFailedResult() }.buttonStyle(PolishButtonStyle())
             }.controlSize(.small)
         }.padding(20)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: PolishDesign.popupRadius))
-            .overlay(RoundedRectangle(cornerRadius: PolishDesign.popupRadius).stroke(Color.primary.opacity(0.08)))
+            .floatingGlass()
+            .clipShape(RoundedRectangle(cornerRadius: PolishDesign.popupRadius, style: .continuous))
     }
 }

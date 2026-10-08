@@ -125,10 +125,15 @@ final class AppController: ObservableObject {
     }
     func showSettings() {
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 610), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+            // The glass backdrop runs beneath the transparent title bar; the layout keeps its 610-point body below it.
+            let style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable]
+            let titlebar = NSWindow.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 800, height: 610), styleMask: style).height - 610
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 610 + titlebar), styleMask: style.union(.fullSizeContentView), backing: .buffered, defer: false)
             window.title = "Polish"; window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(controller: self, settings: settings))
+            let host = NSHostingView(rootView: SettingsView(controller: self, settings: settings, titlebarInset: titlebar))
+            host.sizingOptions = [] // Otherwise the host adds the title bar's safe area to the window's height again.
+            window.contentView = host
             window.center(); settingsWindow = window
         }
         NSApplication.shared.activate(ignoringOtherApps: true)

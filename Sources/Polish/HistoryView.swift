@@ -68,8 +68,7 @@ struct HistoryView: View {
             Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary).padding(.top, 5)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: PolishDesign.cardRadius))
-        .overlay(RoundedRectangle(cornerRadius: PolishDesign.cardRadius).stroke(Color.primary.opacity(0.055)))
+        .glassCard()
     }
 
     private func detail(_ entry: HistoryItem) -> some View {
@@ -102,7 +101,7 @@ struct HistoryView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title).font(.system(size: 10, weight: .semibold)).tracking(1.3).foregroundStyle(tint)
             Text(text).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-        }.padding(18).background(highlight ? Color.white : tint.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
+        }.padding(18).glassCard(tint: highlight ? nil : tint.opacity(0.06))
     }
     private func errorNotice(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(.orange)

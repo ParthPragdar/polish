@@ -32,8 +32,7 @@ struct LoadingIndicator: View {
                 .accessibilityLabel("Cancel rewrite").disabled(controller.phase == .applying)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(tint.opacity(0.18), lineWidth: 1))
+        .floatingGlass(cornerRadius: 22) // Half the panel's 44-point height: a capsule.
         .clipShape(Capsule())
     }
 }

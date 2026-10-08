@@ -6,11 +6,12 @@ import ServiceManagement
 import SwiftUI
 
 private let accent = PolishDesign.accent
-private let canvas = PolishDesign.canvas
 
 struct SettingsView: View {
     @ObservedObject var controller: AppController
     @ObservedObject var settings: Settings
+    /// Height of the transparent title bar the window's glass extends beneath.
+    var titlebarInset: CGFloat = 0
     private var section: String { controller.settingsSection }
     @State private var key = ""
     @State private var keyMessage = ""
@@ -47,8 +48,9 @@ struct SettingsView: View {
                         Text("Version \(Self.version)").font(.system(size: 10)).foregroundStyle(.secondary).padding(.top, 4)
                     }
                 }.padding(.bottom, 24)
-            }.padding(.horizontal, 22).frame(width: 195).background(canvas)
-            Rectangle().fill(Color.black.opacity(0.07)).frame(width: 1)
+            }.padding(.horizontal, 22).frame(width: 195).padding(.top, titlebarInset)
+                .background { ZStack { Rectangle().fill(.ultraThinMaterial); Color.white.opacity(0.28) } }
+            Rectangle().fill(Color.white.opacity(0.7)).frame(width: 1)
             Group {
                 if section == "History" {
                     HistoryView(history: controller.history, selection: $controller.selectedHistoryID)
@@ -61,9 +63,12 @@ struct SettingsView: View {
                         }.padding(PolishDesign.pageInset).frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-            }.background(PolishDesign.page)
+            }.padding(.top, titlebarInset).background(Color.white.opacity(0.14))
         }
-        .frame(width: 800, height: 610).tint(accent)
+        .frame(width: 800, height: 610 + titlebarInset)
+        .background(GlassBackdrop())
+        .ignoresSafeArea()
+        .tint(accent)
         .buttonStyle(PolishButtonStyle())
         .preferredColorScheme(.light)
         .onReceive(timer) { _ in trusted = TextAccess.trusted; loginStatus = LoginItem.status }
@@ -75,7 +80,12 @@ struct SettingsView: View {
                 .padding(.horizontal, 12).padding(.vertical, 11)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .foregroundStyle(section == title ? accent : Color.primary)
-                .background(section == title ? accent.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                .background {
+                    if section == title {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.6))
+                            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(PolishDesign.glassBorder(.light), lineWidth: 1))
+                    }
+                }
                 .contentShape(Rectangle())
         }.buttonStyle(PolishRowStyle()).focusEffectDisabled()
     }
@@ -103,7 +113,7 @@ struct SettingsView: View {
                 }
                 Text("Lets Polish read the focused text and paste the rewrite back into your app.").font(.system(size: 12)).foregroundStyle(.secondary)
                 if !trusted { Button("Open Accessibility Settings") { TextAccess.openAccessibilitySettings() } }
-            }.padding(18).background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard()
             VStack(alignment: .leading, spacing: 13) {
                 Toggle(isOn: Binding(get: { loginStatus == .enabled || loginStatus == .requiresApproval }, set: { enabled in
                     do { try LoginItem.set(enabled); loginMessage = "" }
@@ -119,7 +129,7 @@ struct SettingsView: View {
                 } else {
                     Text("Keeps Polish in the menu bar after you restart your Mac.").font(.system(size: 12)).foregroundStyle(.secondary)
                 }
-            }.padding(18).background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard()
             Label("Select a passage, or leave the cursor in a field to rewrite all its text.", systemImage: "cursorarrow.click.2").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 10) {
                 Button("Preview result popup") { controller.showDemo() }
@@ -138,8 +148,9 @@ struct SettingsView: View {
                 }
                 Spacer(minLength: 0)
                 Image(systemName: settings.autoApply == automatic ? "checkmark.circle.fill" : "circle").foregroundStyle(settings.autoApply == automatic ? accent : Color.secondary.opacity(0.4))
-            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle()).background(settings.autoApply == automatic ? accent.opacity(0.055) : .white, in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(settings.autoApply == automatic ? accent.opacity(0.45) : Color.black.opacity(0.08), lineWidth: 1))
+            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                .glassCard(tint: settings.autoApply == automatic ? PolishDesign.mint.opacity(0.16) : nil)
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(accent.opacity(settings.autoApply == automatic ? 0.45 : 0), lineWidth: 1))
         }.buttonStyle(PolishRowStyle()).focusEffectDisabled()
     }
     private var shortcuts: some View {
@@ -157,7 +168,7 @@ struct SettingsView: View {
                 Text("01   Write in Chrome, an AI chat, or your editor.")
                 Text("02   Select a passage, or keep the cursor in the field.")
                 Text("03   Press your shortcut. Polish takes it from here.")
-            }.font(.system(size: 12)).padding(20).frame(maxWidth: .infinity, alignment: .leading).background(canvas, in: RoundedRectangle(cornerRadius: 12))
+            }.font(.system(size: 12)).padding(20).frame(maxWidth: .infinity, alignment: .leading).glassCard(tint: accent.opacity(0.06))
         }
     }
     private func shortcutRow(_ title: String, _ subtitle: String, binding: Binding<Shortcut>) -> some View {
@@ -165,7 +176,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 6) { Text(title).fontWeight(.semibold); Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary) }
             Spacer()
             ShortcutRecorder(shortcut: binding, begin: { controller.hotkeys.suspend() }, end: { controller.registerHotkeys() }) { controller.registerHotkeys() }.frame(width: 116, height: 35)
-        }.padding(18).background(.white, in: RoundedRectangle(cornerRadius: 12))
+        }.padding(18).glassCard()
     }
     private var connection: some View {
         Group {
@@ -187,7 +198,7 @@ struct SettingsView: View {
                 Text("Live model").fontWeight(.semibold)
                 TextField("gemini-3.8-live", text: $settings.model).textFieldStyle(.roundedBorder)
                 Text("Use a Live model available to your Google project. Default: gemini-3.8-live.").font(.system(size: 12)).foregroundStyle(.secondary)
-            }.padding(20).background(.white, in: RoundedRectangle(cornerRadius: 12))
+            }.padding(20).glassCard()
             VStack(alignment: .leading, spacing: 12) {
                 Label("Only the text you ask to rewrite is sent", systemImage: "lock.shield").fontWeight(.medium)
                 Text("Each shortcut sends your selection or current field to Google. Your last 80 rewrites are saved locally in History. Your entire screen is never sent. Password fields are excluded.")
@@ -242,12 +253,12 @@ struct ResultView: View {
                 TextEditor(text: $controller.result)
                     .font(.system(size: 14)).lineSpacing(5).scrollContentBackground(.hidden)
                     .padding(12).frame(height: min(300, max(150, CGFloat(controller.result.count / 55 + 1) * 22)))
-                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08)))
+                    .background(colorScheme == .dark ? Color.black.opacity(0.22) : Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(PolishDesign.glassBorder(colorScheme), lineWidth: 1))
                     .padding(.horizontal, 20).padding(.bottom, 18)
             }
             if hasResult || isError {
-                Rectangle().fill(Color.primary.opacity(0.065)).frame(height: 1)
+                Rectangle().fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.55)).frame(height: 1)
                 HStack(spacing: 10) {
                     if hasResult {
                         Text("Edit before applying").font(.system(size: 11)).foregroundStyle(.secondary)
@@ -277,9 +288,8 @@ struct ResultView: View {
                     .padding(.horizontal, 20).padding(.vertical, 16)
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: PolishDesign.popupRadius))
-        .overlay(RoundedRectangle(cornerRadius: PolishDesign.popupRadius).stroke(Color.primary.opacity(0.09)))
-        .clipShape(RoundedRectangle(cornerRadius: PolishDesign.popupRadius)).tint(popupAccent)
+        .floatingGlass()
+        .clipShape(RoundedRectangle(cornerRadius: PolishDesign.popupRadius, style: .continuous)).tint(popupAccent)
         .task { focusApplyIfReady() }
         .onChange(of: controller.canApply) { _, ready in
             if ready { focusApplyIfReady() }

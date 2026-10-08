@@ -13,7 +13,7 @@ Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDel
 | `Sources/Polish/HistoryView.swift` | History list, details, Copy, confirmed clearing |
 | `Sources/Polish/LoadingIndicator.swift` | Cancellable progress UI with Reduce Motion support |
 | `Sources/Polish/AutomaticApplyNotice.swift` | Nonactivating notice after automatic replacement fails |
-| `Sources/Polish/DesignSystem.swift` | Shared colors, spacing, and button styles |
+| `Sources/Polish/DesignSystem.swift` | Glass surfaces and backdrop, shared colors, spacing, and button styles |
 | `Sources/PolishCore/Rewrite.swift` | Rewrite instructions, Live client, response validation, UTF-16 text guards |
 | `Sources/PolishCore/FocusLookup.swift` | Bounded focus retries and cancellation |
 | `Sources/PolishCore/RewriteDelivery.swift` | Automatic versus review delivery policy |

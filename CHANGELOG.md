@@ -14,6 +14,7 @@ First public release.
 - Safe replacement: text is only pasted back if the original app, field, and draft are unchanged; the clipboard is restored afterwards.
 - Local history of the latest 80 rewrites, with recent items in the menu-bar menu.
 - Configurable global shortcuts and launch at login.
+- Frosted-glass interface: a vibrant, blurred Settings window and translucent popups that blur the app behind them, in light and dark mode.
 - Universal (Apple Silicon and Intel) release builds for macOS 14 or later.
 
 [0.1.0]: https://github.com/ParthPragdar/polish/releases/tag/v0.1.0
