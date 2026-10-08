@@ -26,8 +26,8 @@ Clipboard restoration occurs only if its change count still matches, avoiding ov
 
 ## Removing stored data
 
-1. Use **Settings → History → Clear history** and confirm. This saves an empty history list; it does not securely erase previous disk blocks or backups. Resolve any reported storage error before assuming clearing succeeded.
-2. Use **Settings → Gemini Live → Remove saved key** to request deletion of the Keychain entry. You can also verify/remove that named entry in Keychain Access. This does not revoke the key at Google; revoke it in AI Studio if needed.
+1. Open **History** (the calendar icon), click the trash button, and confirm. This saves an empty history list; it does not securely erase previous disk blocks or backups. Resolve any reported storage error before assuming clearing succeeded.
+2. Use **Settings → Gemini Live → Remove** to request deletion of the Keychain entry. You can also verify/remove that named entry in Keychain Access. This does not revoke the key at Google; revoke it in AI Studio if needed.
 3. To remove local history outside the app, quit Polish first and remove `~/Library/Application Support/Polish/history.json` using Finder. Avoid copying it into the repository or an issue.
 4. Preferences can be reset for a packaged app after quitting it with `defaults delete app.polish.mac`. This resets configuration and shortcuts but does not delete the Keychain key or history.
 

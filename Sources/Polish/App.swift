@@ -9,6 +9,7 @@ enum PolishApp {
         let delegate = AppDelegate()
         app.delegate = delegate
         app.setActivationPolicy(.accessory)
+        app.appearance = NSAppearance(named: .darkAqua) // Polish is designed for a dark theme only.
         app.run()
         withExtendedLifetime(delegate) {}
     }
@@ -75,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc func grammar() { controller.run(.grammar) }
     @objc func prompt() { controller.run(.prompt) }
-    @objc func settings() { controller.showSettings() }
+    @objc func settings() { controller.showSettings(section: "Settings") }
     @objc func quitApp() { NSApplication.shared.terminate(nil) }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { controller.showSettings(); return true }
@@ -89,7 +90,9 @@ final class AppController: ObservableObject {
     let hotkeys = Hotkeys()
     let access = TextAccess()
     @Published var phase: Phase = .idle
-    @Published var settingsSection = "General"
+    /// The main window's screen: "Overview", "History", or "Settings".
+    @Published var settingsSection = "Overview"
+    @Published private(set) var setup = SetupState.current
     @Published var selectedHistoryID: UUID?
     private var currentHistoryID: UUID?
     private var isPreview = false
@@ -112,6 +115,7 @@ final class AppController: ObservableObject {
     private var settingsWindow: NSWindow?
     private var panel: FloatingPanel?
     private var toast: FloatingPanel?
+    private lazy var toolbarItems = MainToolbar(controller: self)
     private var operationID = UUID()
     @Published private(set) var automaticApplyFailed = false
     var busy: Bool { isWorking }
@@ -125,20 +129,36 @@ final class AppController: ObservableObject {
         do { try hotkeys.register(settings.grammar, settings.prompt); shortcutError = "" }
         catch { shortcutError = (error as NSError).domain }
     }
-    func showHistory(id: UUID? = nil) {
-        settingsSection = "History"; selectedHistoryID = id
-        showSettings()
+    func refreshSetup() {
+        let current = SetupState.current
+        if current != setup { setup = current }
     }
-    func showSettings() {
+    func showHistory(id: UUID? = nil) {
+        selectedHistoryID = id
+        showSettings(section: "History")
+    }
+    func showSettings(section: String? = nil) {
+        if let section { settingsSection = section }
+        refreshSetup()
         if settingsWindow == nil {
-            // The glass backdrop runs beneath the transparent title bar; the layout keeps its 610-point body below it.
-            let style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable]
-            let titlebar = NSWindow.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 800, height: 610), styleMask: style).height - 610
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 610 + titlebar), styleMask: style.union(.fullSizeContentView), backing: .buffered, defer: false)
-            window.title = "Polish"; window.titlebarAppearsTransparent = true
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 610), styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
+            window.title = "Polish"; window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true; window.titlebarSeparatorStyle = .none
+            window.backgroundColor = NSColor(white: 0.155, alpha: 1)
+            // A unified toolbar gives a tall header with vertically centered window buttons, and hosts
+            // the title and actions as real toolbar items so their clicks never become window drags.
+            let toolbar = NSToolbar(identifier: "PolishMain")
+            toolbar.delegate = toolbarItems
+            toolbar.displayMode = .iconOnly
+            toolbar.allowsUserCustomization = false
+            toolbar.centeredItemIdentifiers = [MainToolbar.title]
+            window.toolbar = toolbar; window.toolbarStyle = .unified
             window.isReleasedWhenClosed = false
-            let host = NSHostingView(rootView: SettingsView(controller: self, settings: settings, titlebarInset: titlebar))
-            host.sizingOptions = [] // Otherwise the host adds the title bar's safe area to the window's height again.
+            // The content view spans the whole frame; keep a 610-point body below the header.
+            let header = window.frame.height - window.contentLayoutRect.height
+            window.setContentSize(NSSize(width: 800, height: 610 + header))
+            let host = NSHostingView(rootView: MainWindowView(controller: self, settings: settings, headerHeight: header))
+            host.sizingOptions = [] // Otherwise the host adds the header's safe area to the window's height again.
             window.contentView = host
             window.center(); settingsWindow = window
         }
@@ -341,4 +361,33 @@ final class FloatingPanel: NSPanel {
     var acceptsKeyboardFocus = false
     override var canBecomeKey: Bool { acceptsKeyboardFocus }
     override var canBecomeMain: Bool { false }
+}
+
+/// Supplies the main window's toolbar: a centered title and trailing screen buttons.
+@MainActor
+final class MainToolbar: NSObject, NSToolbarDelegate {
+    static let title = NSToolbarItem.Identifier("polish.title")
+    static let actions = NSToolbarItem.Identifier("polish.actions")
+    private unowned let controller: AppController
+    init(controller: AppController) { self.controller = controller }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, Self.title, .flexibleSpace, Self.actions]
+    }
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        let view: NSView
+        switch identifier {
+        case Self.title: view = NSHostingView(rootView: ToolbarTitle(controller: controller))
+        case Self.actions: view = NSHostingView(rootView: ToolbarActions(controller: controller))
+        default: return nil
+        }
+        view.setFrameSize(view.fittingSize)
+        item.view = view
+        item.isBordered = false
+        return item
+    }
 }

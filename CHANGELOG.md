@@ -17,7 +17,8 @@ First public release.
 - Setup checklist in Settings, a labeled progress pill, and a brief “Replaced · ⌘Z to undo” confirmation.
 - If a result can't be pasted safely, it is copied for you to paste with ⌘V; apps that don't expose their text can still rewrite a selection and copy the result.
 - Detects an Accessibility permission left over from an earlier build and explains how to renew it.
-- Frosted-glass interface: a vibrant, blurred Settings window and translucent popups that blur the app behind them, in light and dark mode.
+- Dark interface built around an Activity dashboard (rewrites by weekday and by app, words polished), a History calendar with search, and one Settings screen.
+- A Changes view that highlights exactly which words a rewrite changed, in the review popup and in History.
 - Universal (Apple Silicon and Intel) release builds for macOS 14 or later.
 
 [0.1.0]: https://github.com/ParthPragdar/polish/releases/tag/v0.1.0

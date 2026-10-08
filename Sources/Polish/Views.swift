@@ -2,294 +2,285 @@ import AppKit
 import ApplicationServices
 import Carbon
 import Combine
+import PolishCore
 import ServiceManagement
 import SwiftUI
 
-private let accent = PolishDesign.accent
+/// What Polish still needs before it can rewrite text.
+struct SetupState: Equatable {
+    var access: TextAccess.AccessStatus
+    var hasKey: Bool
+    var stepsLeft: Int { (access == .granted ? 0 : 1) + (hasKey ? 0 : 1) }
+    var ready: Bool { stepsLeft == 0 }
+    @MainActor static var current: SetupState { SetupState(access: TextAccess.status, hasKey: Keychain.hasKey) }
+}
 
-struct SettingsView: View {
+/// The main window body below the toolbar: Activity, History, or Settings.
+struct MainWindowView: View {
     @ObservedObject var controller: AppController
     @ObservedObject var settings: Settings
-    /// Height of the transparent title bar the window's glass extends beneath.
-    var titlebarInset: CGFloat = 0
-    private var section: String { controller.settingsSection }
-    private var trusted: Bool { access == .granted }
-    private var stepsLeft: Int { (trusted ? 0 : 1) + (hasKey ? 0 : 1) }
+    var headerHeight: CGFloat
+    private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: headerHeight)
+            Rectangle().fill(PolishDesign.hairline).frame(height: 1)
+            Group {
+                switch controller.settingsSection {
+                case "History": HistoryView(controller: controller, history: controller.history, selection: $controller.selectedHistoryID)
+                case "Settings": PreferencesView(controller: controller, settings: settings)
+                default: OverviewView(controller: controller, history: controller.history, settings: settings)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(width: 800, height: 610 + headerHeight)
+        .background(PolishDesign.window)
+        .ignoresSafeArea()
+        .foregroundStyle(.white)
+        .tint(PolishDesign.green)
+        .buttonStyle(PolishButtonStyle())
+        .preferredColorScheme(.dark)
+        .onReceive(timer) { _ in controller.refreshSetup() }
+    }
+}
+
+/// Centered toolbar title: the app name and its readiness, like a plan badge.
+struct ToolbarTitle: View {
+    @ObservedObject var controller: AppController
+    var body: some View {
+        Button { controller.settingsSection = "Overview" } label: {
+            HStack(spacing: 8) {
+                Text("Polish").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                Pill(text: controller.setup.ready ? "READY" : "SETUP", tint: controller.setup.ready ? PolishDesign.green : PolishDesign.orange)
+            }
+            .fixedSize()
+            .frame(width: 140, height: 28) // Toolbar items keep their first size; leave room for either badge.
+        }
+        .buttonStyle(.plain).focusEffectDisabled()
+        .help("Activity")
+        .preferredColorScheme(.dark)
+    }
+}
+
+/// Trailing toolbar buttons; choosing the current screen again returns to Activity.
+struct ToolbarActions: View {
+    @ObservedObject var controller: AppController
+    var body: some View {
+        HStack(spacing: 4) {
+            HeaderIconButton(systemName: "calendar", help: "History", selected: controller.settingsSection == "History") { toggle("History") }
+            HeaderIconButton(systemName: "gearshape", help: "Settings", selected: controller.settingsSection == "Settings") { toggle("Settings") }
+        }
+        .preferredColorScheme(.dark)
+    }
+    private func toggle(_ section: String) {
+        controller.settingsSection = controller.settingsSection == section ? "Overview" : section
+    }
+}
+
+/// All preferences on one screen, grouped into charcoal cards.
+struct PreferencesView: View {
+    @ObservedObject var controller: AppController
+    @ObservedObject var settings: Settings
     @State private var key = ""
     @State private var keyMessage = ""
-    @State private var access = TextAccess.status
-    @State private var hasKey = Keychain.hasKey
     @State private var loginStatus = LoginItem.status
     @State private var loginMessage = ""
     private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development build"
     private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+    private var setup: SetupState { controller.setup }
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 28) {
-                HStack(spacing: 10) {
-                    Image(systemName: "text.badge.checkmark").font(.system(size: 23)).foregroundStyle(accent)
-                    Text("Polish").font(.system(size: 25, weight: .semibold, design: .rounded))
-                }.padding(.top, 20)
-                VStack(spacing: 6) {
-                    nav("General", "slider.horizontal.3")
-                    nav("History", "clock.arrow.circlepath")
-                    nav("Shortcuts", "command")
-                    nav("Gemini Live", "sparkles")
-                }
-                Spacer()
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack(spacing: 6) {
-                        Circle().fill(stepsLeft == 0 ? accent : .orange).frame(width: 6, height: 6)
-                        Text(stepsLeft == 0 ? "Ready for your words" : stepsLeft == 1 ? "One step to get ready" : "Two steps to get ready").font(.system(size: 11, weight: .medium))
-                    }
-                    Text("A little clarity.\nWherever you write.").font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-                    Divider().padding(.vertical, 5)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Developed by").font(.system(size: 10)).foregroundStyle(.secondary)
-                        Text("Parth Pragdar").font(.system(size: 12, weight: .semibold))
-                        Text("Version \(Self.version)").font(.system(size: 10)).foregroundStyle(.secondary).padding(.top, 4)
-                    }
-                }.padding(.bottom, 24)
-            }.padding(.horizontal, 22).frame(width: 195).padding(.top, titlebarInset)
-                .background { ZStack { Rectangle().fill(.ultraThinMaterial); Color.white.opacity(0.28) } }
-            Rectangle().fill(Color.white.opacity(0.7)).frame(width: 1)
-            Group {
-                if section == "History" {
-                    HistoryView(history: controller.history, selection: $controller.selectedHistoryID)
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            if section == "General" { general }
-                            else if section == "Shortcuts" { shortcuts }
-                            else { connection }
-                        }.padding(PolishDesign.pageInset).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }.padding(.top, titlebarInset).background(Color.white.opacity(0.14))
-        }
-        .frame(width: 800, height: 610 + titlebarInset)
-        .background(GlassBackdrop())
-        .ignoresSafeArea()
-        .tint(accent)
-        .buttonStyle(PolishButtonStyle())
-        .preferredColorScheme(.light)
-        .onReceive(timer) { _ in access = TextAccess.status; hasKey = Keychain.hasKey; loginStatus = LoginItem.status }
-    }
-    private func nav(_ title: String, _ symbol: String) -> some View {
-        Button { controller.settingsSection = title } label: {
-            HStack(spacing: 11) { Image(systemName: symbol).frame(width: 18); Text(title); Spacer() }
-                .font(.system(size: 13, weight: section == title ? .semibold : .regular))
-                .padding(.horizontal, 12).padding(.vertical, 11)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .foregroundStyle(section == title ? accent : Color.primary)
-                .background {
-                    if section == title {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.6))
-                            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(PolishDesign.glassBorder(.light), lineWidth: 1))
-                    }
-                }
-                .contentShape(Rectangle())
-        }.buttonStyle(PolishRowStyle()).focusEffectDisabled()
-    }
-    private func heading(_ eyebrow: String, _ title: String, _ subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(eyebrow).font(.system(size: 10, weight: .bold)).tracking(2).foregroundStyle(accent)
-            Text(title).font(.system(size: 28, weight: .semibold, design: .rounded))
-            Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
-        }
-    }
-    private var general: some View {
-        Group {
-            heading("WRITE WITH CONFIDENCE", "Your words, a little clearer.", "Fix a sentence or shape a better prompt, right in the app you’re using.")
-            if stepsLeft > 0 { setupChecklist }
-            VStack(alignment: .leading, spacing: 12) {
-                Text("WHEN A REWRITE IS READY").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
-                modeCard(false, "Review before applying", "See the result, make an edit, then Apply or Copy.", "rectangle.and.pencil.and.ellipsis")
-                modeCard(true, "Apply automatically", "A small loading indicator, then your text is replaced.", "bolt")
-            }
-            VStack(alignment: .leading, spacing: 13) {
-                HStack {
-                    Image(systemName: trusted ? "checkmark.shield" : "hand.raised").foregroundStyle(accent)
-                    Text("Accessibility access").fontWeight(.medium)
-                    Spacer()
-                    Text(trusted ? "Enabled" : access == .stale ? "Turn on again" : "Required").font(.system(size: 11, weight: .medium)).foregroundStyle(trusted ? accent : .orange)
-                }
-                Text(access == .stale ? "macOS is still using the permission from an earlier copy of Polish. Remove Polish from the Accessibility list with the – button, add this copy again, then reopen Polish." : "Lets Polish read the focused text and paste the rewrite back into your app.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                if !trusted { Button("Open Accessibility Settings") { TextAccess.openAccessibilitySettings() } }
-            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard()
-            VStack(alignment: .leading, spacing: 13) {
-                Toggle(isOn: Binding(get: { loginStatus == .enabled || loginStatus == .requiresApproval }, set: { enabled in
-                    do { try LoginItem.set(enabled); loginMessage = "" }
-                    catch { loginMessage = "macOS couldn’t update the login item. Move Polish to Applications and try again." }
-                    loginStatus = LoginItem.status
-                })) {
-                    Label("Launch at login", systemImage: "power").fontWeight(.medium)
-                }.toggleStyle(.switch)
-                if loginStatus == .requiresApproval {
-                    Text("Allow Polish in System Settings → General → Login Items.").font(.system(size: 12)).foregroundStyle(.orange)
-                } else if !loginMessage.isEmpty {
-                    Text(loginMessage).font(.system(size: 12)).foregroundStyle(.orange)
-                } else {
-                    Text("Keeps Polish in the menu bar after you restart your Mac.").font(.system(size: 12)).foregroundStyle(.secondary)
-                }
-            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard()
-            Label("Select a passage, or leave the cursor in a field to rewrite all its text.", systemImage: "cursorarrow.click.2").font(.system(size: 12)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Button("Preview result popup") { controller.showDemo() }
-                Button("Preview loading") { controller.showLoadingDemo() }
-            }.font(.system(size: 12))
-            if !controller.shortcutError.isEmpty { Text(controller.shortcutError).foregroundStyle(.red).font(.caption) }
-        }
-    }
-    private var setupChecklist: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("FINISH SETTING UP").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(accent)
-            setupStep(1, "Add your Gemini API key", done: hasKey, detail: "Free to create in Google AI Studio.", action: "Add key") {
-                controller.settingsSection = "Gemini Live"
+                BackButton { controller.settingsSection = "Overview" }
+                Text("Settings").font(.system(size: 26, weight: .bold))
+                Pill(text: "v\(Self.version)")
+                Spacer()
             }
-            setupStep(2, "Allow Accessibility access", done: trusted,
-                      detail: access == .stale ? "Remove Polish from the list, add it again, then reopen Polish." : "Lets Polish read and replace the text you select.",
-                      action: "Open Settings") { TextAccess.openAccessibilitySettings() }
-        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard(tint: PolishDesign.mint.opacity(0.12))
-    }
-    private func setupStep(_ number: Int, _ title: String, done: Bool, detail: String, action: String, perform: @escaping () -> Void) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(done ? accent : Color.white.opacity(0.7))
-                if done { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.white) }
-                else { Text("\(number)").font(.system(size: 11, weight: .semibold)).foregroundStyle(accent) }
-            }.frame(width: 22, height: 22).overlay(Circle().strokeBorder(accent.opacity(done ? 0 : 0.35)))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.system(size: 13, weight: .semibold)).strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
-                if !done { Text(detail).font(.system(size: 11)).foregroundStyle(.secondary) }
-            }
-            Spacer(minLength: 8)
-            if !done { Button(action, action: perform).font(.system(size: 12)) }
-        }
-    }
-    private func modeCard(_ automatic: Bool, _ title: String, _ subtitle: String, _ icon: String) -> some View {
-        Button { settings.autoApply = automatic } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon).font(.system(size: 21)).foregroundStyle(accent).frame(width: 28)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title).font(.system(size: 14, weight: .semibold))
-                    Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+            .padding(.horizontal, PolishDesign.pageInset).padding(.top, 24).padding(.bottom, 18)
+            ScrollView {
+                HStack(alignment: .top, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        section("WHEN A REWRITE IS READY") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                SegmentedPicker(options: [(false, "Review first"), (true, "Apply instantly")], selection: $settings.autoApply)
+                                Text(settings.autoApply ? "Your text is replaced as soon as the rewrite arrives. ⌘Z undoes it." : "See and edit the result, then apply it with Return.")
+                                    .font(.system(size: 12)).foregroundStyle(PolishDesign.secondaryText).fixedSize(horizontal: false, vertical: true)
+                            }.padding(16)
+                        }
+                        section("SHORTCUTS") {
+                            shortcutRow(RewriteMode.grammar.title, binding: $settings.grammar)
+                            divider
+                            shortcutRow(RewriteMode.prompt.title, binding: $settings.prompt)
+                            divider
+                            HStack {
+                                Text("Use ⌘ or ⌃ with a key. Escape cancels.").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
+                                Spacer()
+                                Button("Restore defaults") { settings.grammar = .grammar; settings.prompt = .prompt; controller.registerHotkeys() }
+                                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(PolishDesign.green)
+                            }.padding(.horizontal, 16).padding(.vertical, 12)
+                        }
+                        if !controller.shortcutError.isEmpty {
+                            Label(controller.shortcutError, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(PolishDesign.orange)
+                        }
+                        section("THIS MAC") {
+                            HStack(spacing: 12) {
+                                IconDisc(systemName: setup.access == .granted ? "checkmark.shield" : "hand.raised", size: 32, tint: setup.access == .granted ? PolishDesign.green : PolishDesign.orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Accessibility").font(.system(size: 13, weight: .medium))
+                                    Text(setup.access == .granted ? "Enabled" : setup.access == .stale ? "Turn on again for this copy" : "Required to read and replace text")
+                                        .font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
+                                }
+                                Spacer()
+                                if setup.access != .granted { Button("Open") { TextAccess.openAccessibilitySettings() }.buttonStyle(PolishButtonStyle(primary: true)) }
+                            }.padding(14)
+                            divider
+                            HStack(spacing: 12) {
+                                IconDisc(systemName: "power", size: 32)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Launch at login").font(.system(size: 13, weight: .medium))
+                                    Text(loginStatus == .requiresApproval ? "Allow Polish in System Settings → Login Items" : loginMessage.isEmpty ? "Keep Polish in the menu bar" : loginMessage)
+                                        .font(.system(size: 11)).foregroundStyle(loginStatus == .requiresApproval || !loginMessage.isEmpty ? PolishDesign.orange : PolishDesign.secondaryText)
+                                }
+                                Spacer()
+                                Toggle("Launch at login", isOn: Binding(get: { loginStatus == .enabled || loginStatus == .requiresApproval }, set: { enabled in
+                                    do { try LoginItem.set(enabled); loginMessage = "" }
+                                    catch { loginMessage = "Move Polish to Applications and try again" }
+                                    loginStatus = LoginItem.status
+                                })).toggleStyle(.switch).labelsHidden()
+                            }.padding(14)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 18) {
+                        section("GEMINI LIVE") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("API key").font(.system(size: 13, weight: .medium))
+                                    Spacer()
+                                    Pill(text: setup.hasKey ? "SAVED" : "MISSING", tint: setup.hasKey ? PolishDesign.green : PolishDesign.orange)
+                                }
+                                SecureField(setup.hasKey ? "Paste a new key to replace it" : "Paste your Gemini API key", text: $key)
+                                    .textFieldStyle(.plain).font(.system(size: 13)).padding(.horizontal, 10).frame(height: 32).darkCard(radius: 8, fill: PolishDesign.well)
+                                HStack(spacing: 8) {
+                                    Button("Save key") {
+                                        do { try Keychain.save(key.trimmingCharacters(in: .whitespacesAndNewlines)); key = ""; keyMessage = "Saved to Keychain."; controller.refreshSetup() }
+                                        catch { keyMessage = "Could not save the key: \(error.localizedDescription)" }
+                                    }.buttonStyle(PolishButtonStyle(primary: true)).disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                    if setup.hasKey {
+                                        Button("Remove") { try? Keychain.save(""); key = ""; keyMessage = "Saved key removed."; controller.refreshSetup() }
+                                    }
+                                    Spacer()
+                                    Link("Get a key ↗", destination: URL(string: "https://aistudio.google.com/apikey")!).font(.system(size: 12)).foregroundStyle(PolishDesign.green)
+                                }
+                                if !keyMessage.isEmpty { Text(keyMessage).font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText) }
+                            }.padding(16)
+                            divider
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Live model").font(.system(size: 13, weight: .medium))
+                                TextField("gemini-3.8-live", text: $settings.model)
+                                    .textFieldStyle(.plain).font(.system(size: 13, design: .monospaced)).padding(.horizontal, 10).frame(height: 32).darkCard(radius: 8, fill: PolishDesign.well)
+                                Text("Any Live model your key can use. Default: gemini-3.8-live.").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
+                            }.padding(16)
+                        }
+                        section("TRY IT") {
+                            HStack(spacing: 8) {
+                                Button("Preview result") { controller.showDemo() }
+                                Button("Preview loading") { controller.showLoadingDemo() }
+                                Spacer()
+                            }.padding(14)
+                        }
+                        Label {
+                            Text("Only the text you choose is sent to Google. History stays on this Mac, unencrypted. Password fields are never read.")
+                        } icon: { Image(systemName: "lock.shield") }
+                        .font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Spacer(minLength: 0)
-                Image(systemName: settings.autoApply == automatic ? "checkmark.circle.fill" : "circle").foregroundStyle(settings.autoApply == automatic ? accent : Color.secondary.opacity(0.4))
-            }.padding(18).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                .glassCard(tint: settings.autoApply == automatic ? PolishDesign.mint.opacity(0.16) : nil)
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(accent.opacity(settings.autoApply == automatic ? 0.45 : 0), lineWidth: 1))
-        }.buttonStyle(PolishRowStyle()).focusEffectDisabled()
-    }
-    private var shortcuts: some View {
-        Group {
-            heading("A SMALL SHORTCUT", "Stay in your flow.", "Two actions, available across your Mac. Click a shortcut to record your own.")
-            shortcutRow("Correct grammar", "Keep your voice. Fix spelling, grammar, and phrasing.", binding: $settings.grammar)
-            shortcutRow("Refine prompt", "Turn a rough request into clear instructions for AI.", binding: $settings.prompt)
-            Text("Use ⌘ or ⌃ together with a letter, number, or punctuation key. Press Escape to cancel recording.").font(.system(size: 12)).foregroundStyle(.secondary)
-            if !controller.shortcutError.isEmpty { Label(controller.shortcutError, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.caption) }
-            Button("Restore default shortcuts") {
-                settings.grammar = .grammar; settings.prompt = .prompt; controller.registerHotkeys()
+                .padding(.horizontal, PolishDesign.pageInset).padding(.bottom, 24)
             }
-            VStack(alignment: .leading, spacing: 12) {
-                Text("THE EVERYDAY FLOW").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(accent)
-                Text("01   Write in Chrome, an AI chat, or your editor.")
-                Text("02   Select a passage, or keep the cursor in the field.")
-                Text("03   Press your shortcut. Polish takes it from here.")
-            }.font(.system(size: 12)).padding(20).frame(maxWidth: .infinity, alignment: .leading).glassCard(tint: accent.opacity(0.06))
+        }
+        .onReceive(timer) { _ in loginStatus = LoginItem.status }
+    }
+
+    private var divider: some View { Rectangle().fill(PolishDesign.hairline).frame(height: 1) }
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundStyle(PolishDesign.tertiaryText).padding(.leading, 4)
+            VStack(alignment: .leading, spacing: 0, content: content).frame(maxWidth: .infinity, alignment: .leading).darkCard()
         }
     }
-    private func shortcutRow(_ title: String, _ subtitle: String, binding: Binding<Shortcut>) -> some View {
+    private func shortcutRow(_ title: String, binding: Binding<Shortcut>) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 6) { Text(title).fontWeight(.semibold); Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary) }
+            Text(title).font(.system(size: 13, weight: .medium))
             Spacer()
-            ShortcutRecorder(shortcut: binding, begin: { controller.hotkeys.suspend() }, end: { controller.registerHotkeys() }) { controller.registerHotkeys() }.frame(width: 116, height: 35)
-        }.padding(18).glassCard()
-    }
-    private var connection: some View {
-        Group {
-            heading("POWERED BY GEMINI LIVE", "Bring your own key.", "Polish connects directly to Google’s Live API. Your key stays in this Mac’s Keychain.")
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Gemini API key").fontWeight(.semibold)
-                SecureField("Paste a key to save or replace it", text: $key).textFieldStyle(.roundedBorder)
-                HStack {
-                    Button("Save key") {
-                        do { try Keychain.save(key.trimmingCharacters(in: .whitespacesAndNewlines)); key = ""; keyMessage = "Key saved to Keychain." }
-                        catch { keyMessage = "Could not save the key: \(error.localizedDescription)" }
-                    }.disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button("Remove saved key") { try? Keychain.save(""); key = ""; keyMessage = "Saved key removed." }
-                    Spacer()
-                    Link("Get an API key ↗", destination: URL(string: "https://aistudio.google.com/apikey")!)
-                }.font(.system(size: 12))
-                if !keyMessage.isEmpty { Text(keyMessage).font(.caption).foregroundStyle(accent) }
-                Divider().padding(.vertical, 4)
-                Text("Live model").fontWeight(.semibold)
-                TextField("gemini-3.8-live", text: $settings.model).textFieldStyle(.roundedBorder)
-                Text("Use a Live model available to your Google project. Default: gemini-3.8-live.").font(.system(size: 12)).foregroundStyle(.secondary)
-            }.padding(20).glassCard()
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Only the text you ask to rewrite is sent", systemImage: "lock.shield").fontWeight(.medium)
-                Text("Each shortcut sends your selection or current field to Google. Your last 80 rewrites are saved locally in History. Your entire screen is never sent. Password fields are excluded.")
-                Text("Live returns the rewrite through a structured function call. No microphone access or audio playback is used. Google API usage charges may apply.")
-            }.font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-        }
+            ShortcutRecorder(shortcut: binding, begin: { controller.hotkeys.suspend() }, end: { controller.registerHotkeys() }) { controller.registerHotkeys() }
+                .frame(width: 110, height: 28)
+        }.padding(.horizontal, 16).padding(.vertical, 10)
     }
 }
 
 struct ResultView: View {
     @ObservedObject var controller: AppController
     @FocusState private var applyFocused: Bool
-    @Environment(\.colorScheme) private var colorScheme
-    private var popupAccent: Color { PolishDesign.accent(for: colorScheme) }
-    private var warningAccent: Color { colorScheme == .dark ? Color(red: 0.92, green: 0.72, blue: 0.43) : Color(red: 0.64, green: 0.39, blue: 0.12) }
+    @State private var tab = Tab.result
+    private enum Tab { case result, changes }
     private var isError: Bool { controller.phase == .error }
     private var hasResult: Bool { !controller.result.isEmpty && (controller.phase == .review || isError) }
     private var working: Bool { controller.phase == .loading || controller.phase == .applying }
+    private var tint: Color { isError ? PolishDesign.orange : PolishDesign.tint(for: controller.mode) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 11).fill(isError ? Color.orange.opacity(0.10) : popupAccent.opacity(0.09))
+                    Circle().fill(tint.opacity(0.16))
                     if working { ProgressView().controlSize(.small) }
                     else {
-                        Image(systemName: isError ? "text.magnifyingglass" : "text.badge.checkmark")
-                            .font(.system(size: 19, weight: .medium)).foregroundStyle(isError ? warningAccent : popupAccent)
+                        Image(systemName: isError ? "exclamationmark" : PolishDesign.symbol(for: controller.mode))
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(tint)
                     }
-                }.frame(width: 40, height: 40)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.system(size: 15, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                    Text(isError ? "Your original text is safe" : controller.copyOnly ? "Ready to copy into \(controller.destination)" : "Ready for your finishing touch")
-                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }.frame(width: 38, height: 38)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                    Text(subtitle).font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText).lineLimit(1)
                 }
                 Spacer(minLength: 8)
+                if hasResult && !controller.original.isEmpty {
+                    SegmentedPicker(options: [(.result, "Result"), (.changes, "Changes")], selection: $tab, compact: true)
+                }
                 if controller.phase != .applying {
-                    Button { controller.dismiss() } label: {
-                        Image(systemName: "xmark")
-                    }.buttonStyle(PolishDismissStyle()).focusable(false).help("Dismiss").accessibilityLabel("Dismiss popup")
+                    Button { controller.dismiss() } label: { Image(systemName: "xmark") }
+                        .buttonStyle(PolishDismissStyle()).focusable(false).help("Dismiss").accessibilityLabel("Dismiss popup")
                         .keyboardShortcut(.cancelAction)
                 }
             }
-            .padding(20)
+            .padding(18)
 
             if isError {
-                Text(controller.error).font(.system(size: 13)).foregroundStyle(.secondary)
+                Text(controller.error).font(.system(size: 13)).foregroundStyle(PolishDesign.secondaryText)
                     .lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 20).padding(.bottom, 18)
+                    .padding(.horizontal, 18).padding(.bottom, 16)
             }
             if hasResult {
-                TextEditor(text: $controller.result)
-                    .font(.system(size: 14)).lineSpacing(5).scrollContentBackground(.hidden)
-                    .padding(12).frame(height: min(300, max(150, CGFloat(controller.result.count / 55 + 1) * 22)))
-                    .background(colorScheme == .dark ? Color.black.opacity(0.22) : Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(PolishDesign.glassBorder(colorScheme), lineWidth: 1))
-                    .padding(.horizontal, 20).padding(.bottom, 18)
+                Group {
+                    if tab == .changes {
+                        ScrollView {
+                            (diffText(original: controller.original, result: controller.result) ?? Text("This rewrite is too long to compare."))
+                                .font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                        }
+                    } else {
+                        TextEditor(text: $controller.result)
+                            .font(.system(size: 14)).lineSpacing(5).scrollContentBackground(.hidden).padding(12)
+                    }
+                }
+                .frame(height: min(300, max(150, CGFloat(controller.result.count / 55 + 1) * 22)))
+                .darkCard(radius: 12, fill: PolishDesign.well)
+                .padding(.horizontal, 18).padding(.bottom, 16)
             }
             if hasResult || isError {
-                Rectangle().fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.55)).frame(height: 1)
+                Rectangle().fill(PolishDesign.hairline).frame(height: 1)
                 HStack(spacing: 10) {
                     if hasResult {
                         footerHint
@@ -308,27 +299,31 @@ struct ResultView: View {
                                 .focusable()
                                 .focused($applyFocused)
                                 .focusEffectDisabled()
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(popupAccent.opacity(applyFocused ? 0.4 : 0), lineWidth: 2).padding(-3).allowsHitTesting(false))
+                                .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.white.opacity(applyFocused ? 0.35 : 0), lineWidth: 2).padding(-3).allowsHitTesting(false))
                         }
                     } else {
-                        Label("No text was changed", systemImage: "checkmark.shield").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Label("No text was changed", systemImage: "checkmark.shield").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
                         Spacer(minLength: 8)
                         if controller.errorNeedsAccessibility {
                             Button("Open Accessibility Settings") { controller.dismiss(); TextAccess.openAccessibilitySettings() }.buttonStyle(PolishButtonStyle(primary: true))
                         } else if controller.errorNeedsSettings {
-                            Button("Open Settings") { controller.dismiss(); controller.showSettings() }.buttonStyle(PolishButtonStyle(primary: true))
+                            Button("Open Settings") { controller.dismiss(); controller.showSettings(section: "Settings") }.buttonStyle(PolishButtonStyle(primary: true))
                         } else if controller.canRetry {
                             Button("Try again") { controller.retry() }.buttonStyle(PolishButtonStyle(primary: true))
                         } else {
                             Button("Got it") { controller.dismiss() }.buttonStyle(PolishButtonStyle(primary: true))
                         }
                     }
-                }.controlSize(.regular).font(.system(size: 12, weight: .medium))
-                    .padding(.horizontal, 20).padding(.vertical, 16)
+                }
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 18).padding(.vertical, 14)
             }
         }
-        .floatingGlass()
-        .clipShape(RoundedRectangle(cornerRadius: PolishDesign.popupRadius, style: .continuous)).tint(popupAccent)
+        .foregroundStyle(.white)
+        .darkCard(radius: PolishDesign.popupRadius, fill: Color(white: 0.17))
+        .clipShape(RoundedRectangle(cornerRadius: PolishDesign.popupRadius, style: .continuous))
+        .tint(PolishDesign.green)
+        .preferredColorScheme(.dark)
         .task { focusApplyIfReady() }
         .onChange(of: controller.canApply) { _, ready in
             if ready { focusApplyIfReady() }
@@ -336,15 +331,20 @@ struct ResultView: View {
     }
     @ViewBuilder private var footerHint: some View {
         if controller.copiedForPaste {
-            Label("Copied — press ⌘V to paste", systemImage: "doc.on.clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(popupAccent)
+            Label("Copied — press ⌘V to paste", systemImage: "doc.on.clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(PolishDesign.green)
         } else if controller.copyOnly {
-            Text("Copy, then paste with ⌘V").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("Copy, then paste with ⌘V").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
         } else {
-            Text("↩ apply  ·  esc close").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("↩ apply  ·  esc close").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
         }
     }
     private func focusApplyIfReady() {
         if controller.canApply && hasResult { applyFocused = true }
+    }
+    private var subtitle: String {
+        if isError { return "Your original text is safe" }
+        let app = controller.destination.isEmpty ? "" : " · \(controller.destination)"
+        return PolishDesign.shortTitle(for: controller.mode) + app
     }
     private var title: String {
         switch controller.phase {
@@ -352,7 +352,7 @@ struct ResultView: View {
         case .applying: return "Applying your rewrite…"
         case .idle: return ""
         case .error: return controller.errorTitle
-        case .review: return controller.mode == .grammar ? "Review your correction" : "Review your prompt"
+        case .review: return controller.mode == .grammar ? "Review correction" : "Review prompt"
         }
     }
 }
@@ -363,7 +363,17 @@ struct ShortcutRecorder: NSViewRepresentable {
     var end: () -> Void
     var changed: () -> Void
     func makeNSView(context: Context) -> RecorderButton {
-        let button = RecorderButton(); button.bezelStyle = .rounded; return button
+        let button = RecorderButton()
+        // A flat key-cap look to match the dark cards, instead of a light system bezel.
+        button.isBordered = false
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 7
+        button.layer?.backgroundColor = NSColor(white: 0.115, alpha: 1).cgColor
+        button.layer?.borderColor = NSColor(white: 1, alpha: 0.08).cgColor
+        button.layer?.borderWidth = 1
+        button.font = .systemFont(ofSize: 12, weight: .semibold)
+        button.contentTintColor = .white
+        return button
     }
     func updateNSView(_ button: RecorderButton, context: Context) {
         button.onBegin = begin; button.onEnd = end

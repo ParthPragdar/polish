@@ -27,11 +27,11 @@ Release builds are universal and run on Apple Silicon and Intel Macs. If you pre
 
 ## Set up
 
-Polish opens its Settings window until setup is complete. After that it lives in the menu bar (the **text-with-checkmark** icon).
+Polish opens its window with a short checklist until setup is complete. After that it lives in the menu bar (the **text-with-checkmark** icon).
 
-1. **Add a Gemini API key.** Create one in [Google AI Studio](https://aistudio.google.com/apikey), then paste it in **Settings → Gemini Live** and click **Save key**. The key is stored in your macOS Keychain. Gemini API usage may be billed by Google depending on your plan.
-2. **Allow Accessibility access.** In **Settings → General**, click **Open Accessibility Settings** and turn on Polish. This lets it read the text you select and paste the rewrite back. Reopen Polish if macOS asks.
-3. **Optional:** turn on **Launch at login**, choose **Review before applying** or **Apply automatically**, and change the shortcuts in **Settings → Shortcuts**.
+1. **Add a Gemini API key.** Create one in [Google AI Studio](https://aistudio.google.com/apikey), then open **Settings** (the gear icon) and paste it under **Gemini Live**, then click **Save key**. The key is stored in your macOS Keychain. Gemini API usage may be billed by Google depending on your plan.
+2. **Allow Accessibility access.** Click **Open** in the setup checklist (or in **Settings → This Mac**) and turn on Polish. This lets it read the text you select and paste the rewrite back. Reopen Polish if macOS asks.
+3. **Optional:** in **Settings**, turn on **Launch at login**, choose **Review first** or **Apply instantly**, and change the shortcuts.
 
 The default model is `gemini-3.8-live`. You can change it in **Settings → Gemini Live** to any [Live API model](https://ai.google.dev/gemini-api/docs/models) your key can use; enter the bare ID without `models/`.
 
@@ -41,7 +41,9 @@ The default model is `gemini-3.8-live`. You can change it in **Settings → Gemi
 2. Press **⌥⌘G** to correct grammar or **⌥⌘P** to refine a prompt. A small indicator appears while Gemini works; use its cancel button to stop.
 3. In review mode, edit the result if you like, then press **Return** to apply or click **Copy**. In automatic mode the text is replaced directly.
 
-Recent rewrites are in the menu-bar menu, and the full list is in **Settings → History**.
+Switch the review popup to **Changes** to see exactly which words were edited. Recent rewrites are in the menu-bar menu.
+
+The Polish window opens on **Activity**: your rewrites by weekday or by app, and how many words you've polished. The calendar icon opens **History**, a month calendar of your saved rewrites with search, where each one can be copied or compared with its original. The gear icon opens **Settings**.
 
 Polish only replaces text if the same app, field, and draft are still there. If you kept typing or switched windows, it copies the result instead, so you can paste it with ⌘V, and keeps it in History. In apps that don't expose their text to Polish, such as some terminals and web editors, select the text first: Polish rewrites it and offers it to copy. Inputs are limited to 12,000 characters. AI output can still change meaning, so review important text.
 
@@ -49,7 +51,7 @@ Polish only replaces text if the same app, field, and draft are still there. If 
 
 - Each rewrite sends only the selected or focused text, directly from your Mac to Google's Gemini API. No screenshots, audio, app names, or history are sent, and Polish has no analytics.
 - Fields that macOS marks as password fields are never read. Other fields can still contain sensitive text, so choose what you rewrite.
-- The API key is kept in Keychain. History (original text, result, app name, time) is stored unencrypted at `~/Library/Application Support/Polish/history.json` and can be cleared from **Settings → History**.
+- The API key is kept in Keychain. History (original text, result, app name, time) is stored unencrypted at `~/Library/Application Support/Polish/history.json` and can be cleared from **History** (the trash button).
 
 Details: [privacy and local storage](docs/PRIVACY.md). Google's handling of API requests is covered by the [Gemini API terms](https://ai.google.dev/gemini-api/terms).
 
@@ -60,10 +62,10 @@ Details: [privacy and local storage](docs/PRIVACY.md). Google's handling of API 
 | Accessibility shows **Required** or **Turn on again** after an update or rebuild | macOS ties the permission to each build. Remove Polish from System Settings → Privacy & Security → Accessibility with the – button, add the new copy, then reopen Polish. |
 | "Couldn't read this editor" | Select the text explicitly, then press the shortcut again. Chrome and Electron apps can take a moment to expose text. Terminals, remote desktops, and canvas-based editors may not be supported. |
 | Gemini request failed | Check your connection, saved key, model ID, quota, and billing in AI Studio. Requests time out after 60 seconds. |
-| A shortcut does nothing | Another app may already use it. Record a different combination in Settings → Shortcuts. |
+| A shortcut does nothing | Another app may already use it. Record a different combination in **Settings → Shortcuts**. |
 | Keychain asks for permission | Allow it. This can happen once after installing a new build. |
 
-To try the UI without a key or permissions, use **Settings → General → Preview result popup**, or run `/Applications/Polish.app/Contents/MacOS/Polish --demo`.
+To try the UI without a key or permissions, use **Settings → Try it → Preview result**, or run `/Applications/Polish.app/Contents/MacOS/Polish --demo`.
 
 ## Build from source
 

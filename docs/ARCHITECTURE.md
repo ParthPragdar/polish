@@ -1,6 +1,6 @@
 # Architecture
 
-Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDelegate` owns the status menu, and `AppController` coordinates preferences, windows, rewrite tasks, and history. SwiftUI provides Settings, review, loading, and history views. The package uses only Apple frameworks.
+Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDelegate` owns the status menu, and `AppController` coordinates preferences, windows, rewrite tasks, and history. SwiftUI provides the main window (Activity, History, Settings), and the review, loading, and notice panels; a dark appearance is applied app-wide. The package uses only Apple frameworks.
 
 ## Source map
 
@@ -9,15 +9,18 @@ Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDel
 | `Sources/Polish/App.swift` | Lifecycle, menu, task state, result delivery, floating panels |
 | `Sources/Polish/Settings.swift` | UserDefaults, Keychain, launch-at-login item, Carbon global hotkeys |
 | `Sources/Polish/TextAccess.swift` | Accessibility capture, target validation, copy/paste, clipboard restoration |
-| `Sources/Polish/Views.swift` | Settings, editable result popup, shortcut recorder |
-| `Sources/Polish/HistoryView.swift` | History list, details, Copy, confirmed clearing |
+| `Sources/Polish/Views.swift` | Main window shell and toolbar items, Settings screen, editable result popup with Changes view, shortcut recorder |
+| `Sources/Polish/OverviewView.swift` | Activity dashboard: weekday radar, app ranking, stat tiles, setup checklist |
+| `Sources/Polish/HistoryView.swift` | History calendar, search, list, detail with Changes view, confirmed clearing |
 | `Sources/Polish/LoadingIndicator.swift` | Cancellable progress UI with Reduce Motion support |
 | `Sources/Polish/AutomaticApplyNotice.swift` | Nonactivating notice after automatic replacement fails |
-| `Sources/Polish/DesignSystem.swift` | Glass surfaces and backdrop, shared colors, spacing, and button styles |
+| `Sources/Polish/DesignSystem.swift` | Dark palette, cards, pills, segmented control, buttons, diff rendering |
 | `Sources/PolishCore/Rewrite.swift` | Rewrite instructions, Live client, response validation, UTF-16 text guards |
 | `Sources/PolishCore/FocusLookup.swift` | Bounded focus retries and cancellation |
 | `Sources/PolishCore/RewriteDelivery.swift` | Automatic versus review delivery policy |
 | `Sources/PolishCore/RewriteHistory.swift` | Retention, atomic persistence, edited results, storage errors |
+| `Sources/PolishCore/RewriteStats.swift` | Totals, weekday and per-app tallies, and per-day grouping from history |
+| `Sources/PolishCore/WordDiff.swift` | Word-level diff between an original and its rewrite |
 | `Sources/PolishCore/PopupPlacement.swift` | Coordinate conversion, anchor validation, display choice, panel bounds |
 
 ## Rewrite flow
