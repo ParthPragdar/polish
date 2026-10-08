@@ -14,6 +14,9 @@ First public release.
 - Safe replacement: text is only pasted back if the original app, field, and draft are unchanged; the clipboard is restored afterwards.
 - Local history of the latest 80 rewrites, with recent items in the menu-bar menu.
 - Configurable global shortcuts and launch at login.
+- Setup checklist in Settings, a labeled progress pill, and a brief “Replaced · ⌘Z to undo” confirmation.
+- If a result can't be pasted safely, it is copied for you to paste with ⌘V; apps that don't expose their text can still rewrite a selection and copy the result.
+- Detects an Accessibility permission left over from an earlier build and explains how to renew it.
 - Frosted-glass interface: a vibrant, blurred Settings window and translucent popups that blur the app behind them, in light and dark mode.
 - Universal (Apple Silicon and Intel) release builds for macOS 14 or later.
 

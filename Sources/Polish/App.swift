@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller.registerHotkeys()
         controller.hotkeys.onPress = { [weak self] id in self?.controller.run(id == 0 ? .grammar : .prompt) }
         // Stay in the menu bar when launched at login; open Settings only while setup is incomplete.
-        if !TextAccess.trusted || !Keychain.hasKey || CommandLine.arguments.contains("--demo") { controller.showSettings() }
+        if TextAccess.status != .granted || !Keychain.hasKey || CommandLine.arguments.contains("--demo") { controller.showSettings() }
         if CommandLine.arguments.contains("--demo") { controller.showDemo() }
     }
     func menuWillOpen(_ menu: NSMenu) { rebuildMenu(menu) }
@@ -102,16 +102,22 @@ final class AppController: ObservableObject {
     @Published var copied = false
     @Published var errorTitle = "Couldn’t finish the rewrite"
     @Published var errorNeedsSettings = false
+    @Published var errorNeedsAccessibility = false
+    /// The result was put on the clipboard because Polish couldn't paste it safely.
+    @Published private(set) var copiedForPaste = false
     @Published private(set) var isWorking = false
     private var sourceApplication: NSRunningApplication?
     private var target: TextAccess.Target?
     private var task: Task<Void, Never>?
     private var settingsWindow: NSWindow?
     private var panel: FloatingPanel?
+    private var toast: FloatingPanel?
     private var operationID = UUID()
     @Published private(set) var automaticApplyFailed = false
     var busy: Bool { isWorking }
-    var canApply: Bool { (target != nil || isPreview) && !isWorking }
+    var canApply: Bool { (target?.canReplace == true || isPreview) && !isWorking }
+    /// The source app exposes no editable field, so the result can only be copied.
+    var copyOnly: Bool { target.map { !$0.canReplace } ?? false }
     var canRetry: Bool { sourceApplication != nil && sourceApplication?.isTerminated == false && !isWorking }
     func retry() { run(mode, source: sourceApplication) }
 
@@ -149,7 +155,7 @@ final class AppController: ObservableObject {
         isPreview = false
         automaticApplyFailed = false
         self.sourceApplication = requestedApp
-        self.mode = mode; result = ""; error = ""; original = ""; copied = false; target = nil
+        self.mode = mode; result = ""; error = ""; original = ""; copied = false; copiedForPaste = false; target = nil
         destination = requestedApp?.localizedName ?? ""
         errorNeedsSettings = false; isWorking = true; phase = .loading
         let id = UUID(); operationID = id
@@ -175,10 +181,12 @@ final class AppController: ObservableObject {
                 switch outcome {
                 case .applied:
                     phase = .idle
+                    showToast(at: captured.anchor)
                 case .review:
                     isWorking = false
                     phase = .review; showPanel(at: captured.anchor, interactive: true)
                 case .automaticFailure(let failure):
+                    copyForPaste()
                     presentError(failure)
                     automaticApplyFailed = true
                     phase = .error
@@ -207,8 +215,9 @@ final class AppController: ObservableObject {
                 saveEditedResult()
                 panel?.orderOut(nil)
                 phase = .idle
+                showToast(at: target.anchor)
             } catch is CancellationError { }
-            catch { presentError(error); phase = .error; showPanel(at: target.anchor, interactive: true) }
+            catch { copyForPaste(); presentError(error); phase = .error; showPanel(at: target.anchor, interactive: true) }
             task = nil; isWorking = false
         }
     }
@@ -224,6 +233,11 @@ final class AppController: ObservableObject {
         saveEditedResult()
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(result, forType: .string); copied = true
     }
+    /// When a paste can't be verified, leave the result one ⌘V away instead of making the user copy it.
+    private func copyForPaste() {
+        guard !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        copy(); copiedForPaste = true
+    }
     func dismiss() {
         // Do not interrupt a paste while the clipboard is temporarily owned.
         guard phase != .applying else { return }
@@ -231,7 +245,7 @@ final class AppController: ObservableObject {
     }
     private func showPanel(at anchor: CGRect?, interactive: Bool) {
         panel?.orderOut(nil)
-        let width: CGFloat = automaticApplyFailed ? 320 : (interactive ? 460 : 94)
+        let width: CGFloat = automaticApplyFailed ? 320 : (interactive ? 460 : 236)
         let root: AnyView
         if automaticApplyFailed {
             root = AnyView(AutomaticApplyNotice(controller: self).frame(width: width))
@@ -251,14 +265,8 @@ final class AppController: ObservableObject {
         window.contentView = content
         window.isMovableByWindowBackground = true
         window.title = "Polish · " + mode.title
-        let screens = NSScreen.screens
-        guard let primary = screens.first else { return }
-        let resolvedAnchor = target.flatMap { access.anchor(for: $0) } ?? anchor
-            ?? access.windowAnchor(for: sourceApplication)
-            ?? CGRect(x: primary.visibleFrame.midX, y: primary.visibleFrame.midY, width: 1, height: 1)
-        let index = PopupPlacement.screenIndex(for: resolvedAnchor, screens: screens.map(\.frame)) ?? 0
-        let screen = screens[index]
-        window.setFrameOrigin(PopupPlacement.origin(for: size, beside: resolvedAnchor, visibleFrame: screen.visibleFrame))
+        guard let origin = origin(for: size, near: anchor) else { return }
+        window.setFrameOrigin(origin)
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { window.alphaValue = 0 }
         if interactive { window.makeKeyAndOrderFront(nil) } else { window.orderFrontRegardless() }
         panel = window
@@ -267,16 +275,50 @@ final class AppController: ObservableObject {
             window.animator().alphaValue = 1
         }
     }
+    /// Beside the caret or field when known, else the source window, else centered on the display under the pointer.
+    private func origin(for size: CGSize, near anchor: CGRect?) -> CGPoint? {
+        let screens = NSScreen.screens
+        guard let primary = screens.first else { return nil }
+        let pointerScreen = screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? primary
+        let resolvedAnchor = target.flatMap { access.anchor(for: $0) } ?? anchor
+            ?? access.windowAnchor(for: sourceApplication)
+            ?? CGRect(x: pointerScreen.visibleFrame.midX - size.width / 2, y: pointerScreen.visibleFrame.midY, width: size.width, height: 1)
+        let index = PopupPlacement.screenIndex(for: resolvedAnchor, screens: screens.map(\.frame)) ?? 0
+        return PopupPlacement.origin(for: size, beside: resolvedAnchor, visibleFrame: screens[index].visibleFrame)
+    }
+    /// A brief, click-through confirmation after text is replaced.
+    private func showToast(at anchor: CGRect?) {
+        toast?.orderOut(nil)
+        let content = NSHostingView(rootView: AppliedToast())
+        let size = content.fittingSize
+        guard let origin = origin(for: size, near: anchor) else { return }
+        let window = FloatingPanel(contentRect: NSRect(origin: origin, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.level = .floating; window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
+        window.ignoresMouseEvents = true; window.isReleasedWhenClosed = false
+        window.contentView = content
+        window.orderFrontRegardless()
+        toast = window
+        Task { [weak self, weak window] in
+            try? await Task.sleep(for: .seconds(1.6))
+            guard let window, self?.toast === window else { return }
+            await NSAnimationContext.runAnimationGroup { context in
+                context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.25
+                window.animator().alphaValue = 0
+            }
+            window.orderOut(nil)
+            if self?.toast === window { self?.toast = nil }
+        }
+    }
     private func presentError(_ failure: Error) {
         error = failure.localizedDescription
         errorTitle = (failure as? CaptureError)?.title ?? (result.isEmpty ? "Couldn’t finish the rewrite" : "Your rewrite is ready to copy")
-        errorNeedsSettings = (failure as? CaptureError).map {
-            if case .permission = $0 { return true }; return false
-        } ?? (target != nil && result.isEmpty)
+        errorNeedsAccessibility = (failure as? CaptureError)?.needsAccessibility ?? false
+        errorNeedsSettings = !errorNeedsAccessibility && (failure as? CaptureError) == nil && target != nil && result.isEmpty
     }
     func showLoadingDemo() {
         guard task == nil else { return }
-        dismiss(); isPreview = false; automaticApplyFailed = false; target = nil; currentHistoryID = nil; sourceApplication = nil
+        dismiss(); isPreview = false; automaticApplyFailed = false; target = nil; currentHistoryID = nil; sourceApplication = nil; copiedForPaste = false
         phase = .loading; isWorking = true
         showPanel(at: settingsWindow?.frame, interactive: false)
         panel?.acceptsKeyboardFocus = true
@@ -289,7 +331,7 @@ final class AppController: ObservableObject {
     func showDemo() {
         guard task == nil else { return }
         automaticApplyFailed = false; isPreview = true
-        target = nil; currentHistoryID = nil; error = ""; copied = false; sourceApplication = nil
+        target = nil; currentHistoryID = nil; error = ""; copied = false; copiedForPaste = false; sourceApplication = nil
         mode = .grammar; phase = .review; destination = "Preview"; original = "i has a idea for a better app"; result = "I have an idea for a better app."
         showPanel(at: settingsWindow?.frame, interactive: true)
     }

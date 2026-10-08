@@ -43,7 +43,7 @@ The default model is `gemini-3.8-live`. You can change it in **Settings → Gemi
 
 Recent rewrites are in the menu-bar menu, and the full list is in **Settings → History**.
 
-Polish only replaces text if the same app, field, and draft are still there; if you kept typing or switched windows, it keeps the result in History and offers to copy it instead. Inputs are limited to 12,000 characters. AI output can still change meaning, so review important text.
+Polish only replaces text if the same app, field, and draft are still there. If you kept typing or switched windows, it copies the result instead, so you can paste it with ⌘V, and keeps it in History. In apps that don't expose their text to Polish, such as some terminals and web editors, select the text first: Polish rewrites it and offers it to copy. Inputs are limited to 12,000 characters. AI output can still change meaning, so review important text.
 
 ## Privacy
 
@@ -57,8 +57,8 @@ Details: [privacy and local storage](docs/PRIVACY.md). Google's handling of API 
 
 | Problem | Fix |
 | --- | --- |
-| Accessibility shows **Required** after an update or rebuild | Remove Polish from System Settings → Privacy & Security → Accessibility, add the new copy, then reopen Polish. |
-| "No editor detected" | Click inside the text field and select the text explicitly. Chrome and Electron apps can take a moment to expose text. Terminals, remote desktops, and canvas-based editors may not be supported. |
+| Accessibility shows **Required** or **Turn on again** after an update or rebuild | macOS ties the permission to each build. Remove Polish from System Settings → Privacy & Security → Accessibility with the – button, add the new copy, then reopen Polish. |
+| "Couldn't read this editor" | Select the text explicitly, then press the shortcut again. Chrome and Electron apps can take a moment to expose text. Terminals, remote desktops, and canvas-based editors may not be supported. |
 | Gemini request failed | Check your connection, saved key, model ID, quota, and billing in AI Studio. Requests time out after 60 seconds. |
 | A shortcut does nothing | Another app may already use it. Record a different combination in Settings → Shortcuts. |
 | Keychain asks for permission | Allow it. This can happen once after installing a new build. |

@@ -13,9 +13,12 @@ struct SettingsView: View {
     /// Height of the transparent title bar the window's glass extends beneath.
     var titlebarInset: CGFloat = 0
     private var section: String { controller.settingsSection }
+    private var trusted: Bool { access == .granted }
+    private var stepsLeft: Int { (trusted ? 0 : 1) + (hasKey ? 0 : 1) }
     @State private var key = ""
     @State private var keyMessage = ""
-    @State private var trusted = TextAccess.trusted
+    @State private var access = TextAccess.status
+    @State private var hasKey = Keychain.hasKey
     @State private var loginStatus = LoginItem.status
     @State private var loginMessage = ""
     private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development build"
@@ -37,8 +40,8 @@ struct SettingsView: View {
                 Spacer()
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 6) {
-                        Circle().fill(trusted ? accent : .orange).frame(width: 6, height: 6)
-                        Text(trusted ? "Ready for your words" : "One step to get ready").font(.system(size: 11, weight: .medium))
+                        Circle().fill(stepsLeft == 0 ? accent : .orange).frame(width: 6, height: 6)
+                        Text(stepsLeft == 0 ? "Ready for your words" : stepsLeft == 1 ? "One step to get ready" : "Two steps to get ready").font(.system(size: 11, weight: .medium))
                     }
                     Text("A little clarity.\nWherever you write.").font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                     Divider().padding(.vertical, 5)
@@ -71,7 +74,7 @@ struct SettingsView: View {
         .tint(accent)
         .buttonStyle(PolishButtonStyle())
         .preferredColorScheme(.light)
-        .onReceive(timer) { _ in trusted = TextAccess.trusted; loginStatus = LoginItem.status }
+        .onReceive(timer) { _ in access = TextAccess.status; hasKey = Keychain.hasKey; loginStatus = LoginItem.status }
     }
     private func nav(_ title: String, _ symbol: String) -> some View {
         Button { controller.settingsSection = title } label: {
@@ -99,6 +102,7 @@ struct SettingsView: View {
     private var general: some View {
         Group {
             heading("WRITE WITH CONFIDENCE", "Your words, a little clearer.", "Fix a sentence or shape a better prompt, right in the app you’re using.")
+            if stepsLeft > 0 { setupChecklist }
             VStack(alignment: .leading, spacing: 12) {
                 Text("WHEN A REWRITE IS READY").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
                 modeCard(false, "Review before applying", "See the result, make an edit, then Apply or Copy.", "rectangle.and.pencil.and.ellipsis")
@@ -109,9 +113,10 @@ struct SettingsView: View {
                     Image(systemName: trusted ? "checkmark.shield" : "hand.raised").foregroundStyle(accent)
                     Text("Accessibility access").fontWeight(.medium)
                     Spacer()
-                    Text(trusted ? "Enabled" : "Required").font(.system(size: 11, weight: .medium)).foregroundStyle(trusted ? accent : .orange)
+                    Text(trusted ? "Enabled" : access == .stale ? "Turn on again" : "Required").font(.system(size: 11, weight: .medium)).foregroundStyle(trusted ? accent : .orange)
                 }
-                Text("Lets Polish read the focused text and paste the rewrite back into your app.").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(access == .stale ? "macOS is still using the permission from an earlier copy of Polish. Remove Polish from the Accessibility list with the – button, add this copy again, then reopen Polish." : "Lets Polish read the focused text and paste the rewrite back into your app.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if !trusted { Button("Open Accessibility Settings") { TextAccess.openAccessibilitySettings() } }
             }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard()
             VStack(alignment: .leading, spacing: 13) {
@@ -136,6 +141,32 @@ struct SettingsView: View {
                 Button("Preview loading") { controller.showLoadingDemo() }
             }.font(.system(size: 12))
             if !controller.shortcutError.isEmpty { Text(controller.shortcutError).foregroundStyle(.red).font(.caption) }
+        }
+    }
+    private var setupChecklist: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("FINISH SETTING UP").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(accent)
+            setupStep(1, "Add your Gemini API key", done: hasKey, detail: "Free to create in Google AI Studio.", action: "Add key") {
+                controller.settingsSection = "Gemini Live"
+            }
+            setupStep(2, "Allow Accessibility access", done: trusted,
+                      detail: access == .stale ? "Remove Polish from the list, add it again, then reopen Polish." : "Lets Polish read and replace the text you select.",
+                      action: "Open Settings") { TextAccess.openAccessibilitySettings() }
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassCard(tint: PolishDesign.mint.opacity(0.12))
+    }
+    private func setupStep(_ number: Int, _ title: String, done: Bool, detail: String, action: String, perform: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(done ? accent : Color.white.opacity(0.7))
+                if done { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.white) }
+                else { Text("\(number)").font(.system(size: 11, weight: .semibold)).foregroundStyle(accent) }
+            }.frame(width: 22, height: 22).overlay(Circle().strokeBorder(accent.opacity(done ? 0 : 0.35)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 13, weight: .semibold)).strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
+                if !done { Text(detail).font(.system(size: 11)).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 8)
+            if !done { Button(action, action: perform).font(.system(size: 12)) }
         }
     }
     private func modeCard(_ automatic: Bool, _ title: String, _ subtitle: String, _ icon: String) -> some View {
@@ -231,7 +262,7 @@ struct ResultView: View {
                 }.frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.system(size: 15, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                    Text(isError ? "Your original text is safe" : "Ready for your finishing touch")
+                    Text(isError ? "Your original text is safe" : controller.copyOnly ? "Ready to copy into \(controller.destination)" : "Ready for your finishing touch")
                         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 8)
@@ -261,22 +292,30 @@ struct ResultView: View {
                 Rectangle().fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.55)).frame(height: 1)
                 HStack(spacing: 10) {
                     if hasResult {
-                        Text("Edit before applying").font(.system(size: 11)).foregroundStyle(.secondary)
+                        footerHint
                         Spacer(minLength: 8)
-                        Button { controller.copy() } label: {
-                            Label(controller.copied ? "Copied" : "Copy", systemImage: controller.copied ? "checkmark" : "doc.on.doc")
-                        }.buttonStyle(PolishButtonStyle())
-                        Button("Apply rewrite") { controller.apply() }.buttonStyle(PolishButtonStyle(primary: true))
-                            .disabled(!controller.canApply || controller.result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            .keyboardShortcut(.defaultAction)
-                            .focusable()
-                            .focused($applyFocused)
-                            .focusEffectDisabled()
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(popupAccent.opacity(applyFocused ? 0.4 : 0), lineWidth: 2).padding(-3).allowsHitTesting(false))
+                        if controller.copyOnly {
+                            Button { controller.copy() } label: {
+                                Label(controller.copied ? "Copied" : "Copy result", systemImage: controller.copied ? "checkmark" : "doc.on.doc")
+                            }.buttonStyle(PolishButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+                        } else {
+                            Button { controller.copy() } label: {
+                                Label(controller.copied ? "Copied" : "Copy", systemImage: controller.copied ? "checkmark" : "doc.on.doc")
+                            }.buttonStyle(PolishButtonStyle())
+                            Button("Apply rewrite") { controller.apply() }.buttonStyle(PolishButtonStyle(primary: true))
+                                .disabled(!controller.canApply || controller.result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                .keyboardShortcut(.defaultAction)
+                                .focusable()
+                                .focused($applyFocused)
+                                .focusEffectDisabled()
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(popupAccent.opacity(applyFocused ? 0.4 : 0), lineWidth: 2).padding(-3).allowsHitTesting(false))
+                        }
                     } else {
                         Label("No text was changed", systemImage: "checkmark.shield").font(.system(size: 11)).foregroundStyle(.secondary)
                         Spacer(minLength: 8)
-                        if controller.errorNeedsSettings {
+                        if controller.errorNeedsAccessibility {
+                            Button("Open Accessibility Settings") { controller.dismiss(); TextAccess.openAccessibilitySettings() }.buttonStyle(PolishButtonStyle(primary: true))
+                        } else if controller.errorNeedsSettings {
                             Button("Open Settings") { controller.dismiss(); controller.showSettings() }.buttonStyle(PolishButtonStyle(primary: true))
                         } else if controller.canRetry {
                             Button("Try again") { controller.retry() }.buttonStyle(PolishButtonStyle(primary: true))
@@ -293,6 +332,15 @@ struct ResultView: View {
         .task { focusApplyIfReady() }
         .onChange(of: controller.canApply) { _, ready in
             if ready { focusApplyIfReady() }
+        }
+    }
+    @ViewBuilder private var footerHint: some View {
+        if controller.copiedForPaste {
+            Label("Copied — press ⌘V to paste", systemImage: "doc.on.clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(popupAccent)
+        } else if controller.copyOnly {
+            Text("Copy, then paste with ⌘V").font(.system(size: 11)).foregroundStyle(.secondary)
+        } else {
+            Text("↩ apply  ·  esc close").font(.system(size: 11)).foregroundStyle(.secondary)
         }
     }
     private func focusApplyIfReady() {

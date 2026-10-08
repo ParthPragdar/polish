@@ -1,12 +1,16 @@
 import SwiftUI
 
-/// Compact, text-free progress with a traveling wave and a soft breathing glow.
+/// Compact progress pill: a traveling wave with a soft breathing glow, what Polish is doing, and Cancel.
 struct LoadingIndicator: View {
     @ObservedObject var controller: AppController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     private var tint: Color {
         PolishDesign.accent(for: colorScheme)
+    }
+    private var label: String {
+        if controller.phase == .applying { return "Applying…" }
+        return controller.mode == .grammar ? "Correcting grammar…" : "Refining prompt…"
     }
     var body: some View {
         HStack(spacing: 12) {
@@ -25,12 +29,15 @@ struct LoadingIndicator: View {
                     }
                 }.frame(width: 30, height: 26)
             }.accessibilityElement(children: .ignore).accessibilityLabel("Rewriting text")
+            Text(label).font(.system(size: 12, weight: .medium)).lineLimit(1).fixedSize()
+            Spacer(minLength: 0)
             Button { controller.dismiss() } label: {
                 Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.secondary).frame(width: 24, height: 28).contentShape(Rectangle())
             }.buttonStyle(.plain).focusable(false).help("Cancel rewrite")
                 .accessibilityLabel("Cancel rewrite").disabled(controller.phase == .applying)
         }
+        .padding(.leading, 14).padding(.trailing, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .floatingGlass(cornerRadius: 22) // Half the panel's 44-point height: a capsule.
         .clipShape(Capsule())

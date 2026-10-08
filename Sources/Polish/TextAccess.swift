@@ -6,16 +6,28 @@ import PolishCore
 final class TextAccess {
     struct Target {
         let application: NSRunningApplication
-        let element: AXUIElement
+        /// Nil when the app exposes no editable field: the selection was copied, and the result can only be copied back.
+        let element: AXUIElement?
         let original: String
         let fullValue: String?
         let range: NSRange?
         let wholeField: Bool
         let anchor: CGRect?
         var appName: String { application.localizedName ?? "your app" }
+        var canReplace: Bool { element != nil }
     }
 
-    static var trusted: Bool { AXIsProcessTrusted() }
+    enum AccessStatus { case granted, denied, stale }
+    /// A grant made for an earlier build can leave AXIsProcessTrusted() true while macOS still
+    /// refuses every call from this one, so confirm that a known app actually answers.
+    static var status: AccessStatus {
+        guard AXIsProcessTrusted() else { return .denied }
+        guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { return .granted }
+        let element = AXUIElementCreateApplication(dock.processIdentifier)
+        AXUIElementSetMessagingTimeout(element, 0.3)
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &value) == .apiDisabled ? .stale : .granted
+    }
     static func openAccessibilitySettings() {
         // Open the pane directly; requesting the AX prompt as well opens a second dialog.
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
@@ -144,26 +156,43 @@ final class TextAccess {
     }
     func anchor(for target: Target) -> CGRect? {
         // Re-read geometry when the result arrives: the source window may have moved.
-        anchor(for: target.element, selectedRange: range(target.element), app: target.application)
+        guard let element = target.element else { return windowAnchor(for: target.application) }
+        return anchor(for: element, selectedRange: range(element), app: target.application)
     }
     func windowAnchor(for app: NSRunningApplication?) -> CGRect? {
-        guard let app, let primary = NSScreen.screens.first,
-              let window = elementAttribute(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute),
-              let bounds = frame(of: window) else { return nil }
+        guard let app, let primary = NSScreen.screens.first else { return nil }
+        let axWindow = elementAttribute(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute)
+        guard let bounds = axWindow.flatMap({ frame(of: $0) }) ?? windowServerFrame(of: app) else { return nil }
         return PopupPlacement.anchor(caret: nil, field: nil,
             window: PopupPlacement.appKitRect(fromAX: bounds, primaryScreenTop: primary.frame.maxY),
             screens: NSScreen.screens.map(\.frame))
     }
+    /// The app's frontmost normal window from the window server, for apps whose Accessibility
+    /// tree omits geometry. Bounds share AX's top-left origin and need no Screen Recording access.
+    private func windowServerFrame(of app: NSRunningApplication) -> CGRect? {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+        for info in windows where (info[kCGWindowOwnerPID as String] as? pid_t) == app.processIdentifier
+            && (info[kCGWindowLayer as String] as? Int) == 0 {
+            if let bounds = info[kCGWindowBounds as String] as? [String: Any],
+               let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 80, rect.height > 60 { return rect }
+        }
+        return nil
+    }
 
     private func ensureFocused(_ target: Target) throws {
+        guard let element = target.element else { throw RewriteError.message(Self.copyOnlyMessage(target.appName)) }
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.application.processIdentifier,
-              let current = focused(target.application), CFEqual(current, target.element) else {
+              let current = focused(target.application), CFEqual(current, element) else {
             throw RewriteError.message("The active text field changed. Return to the original field and retry, or copy the result.")
         }
     }
 
     func capture(from app: NSRunningApplication?) async throws -> Target {
-        guard Self.trusted else { throw CaptureError.permission }
+        switch Self.status {
+        case .denied: throw CaptureError.permission
+        case .stale: throw CaptureError.permissionStale
+        case .granted: break
+        }
         guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
             throw CaptureError.noApplication
         }
@@ -173,7 +202,7 @@ final class TextAccess {
             guard let resolved = try await FocusLookup.resolve(isCurrent: {
                 NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier
             }, probe: { self.focused(app) }) else {
-                throw CaptureError.noEditor("the current app")
+                return try await captureCopiedSelection(from: app)
             }
             element = resolved
         } catch FocusLookupError.applicationChanged { throw CaptureError.applicationChanged }
@@ -214,16 +243,33 @@ final class TextAccess {
                 throw RewriteError.message("No text could be read from this field. Select the passage you want to rewrite, then try the shortcut again.")
             }
         }
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw RewriteError.message("Write something first, then press the shortcut.") }
-        guard text.utf16.count <= 12000 else { throw RewriteError.message("Select a smaller passage (up to 12,000 characters).") }
+        try Self.validate(text)
         let target = Target(application: app, element: element, original: text, fullValue: full, range: replacementRange, wholeField: whole, anchor: anchor(for: element, selectedRange: selectedRange, app: app))
         try ensureFocused(target)
         return target
     }
 
+    /// Terminals, canvas editors, and some web apps expose no editable field. A plain Copy of
+    /// the selection still lets Polish rewrite it; the result is offered for copying, never pasted blind.
+    private func captureCopiedSelection(from app: NSRunningApplication) async throws -> Target {
+        let copied = try await copySelection(app: app, element: nil)
+        guard !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw CaptureError.noEditor(app.localizedName ?? "This app")
+        }
+        try Self.validate(copied)
+        return Target(application: app, element: nil, original: copied, fullValue: nil, range: nil, wholeField: false, anchor: windowAnchor(for: app))
+    }
+    private static func validate(_ text: String) throws {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw RewriteError.message("Write something first, then press the shortcut.") }
+        guard text.utf16.count <= 12000 else { throw RewriteError.message("Select a smaller passage (up to 12,000 characters).") }
+    }
+    static func copyOnlyMessage(_ appName: String) -> String {
+        "\(appName) doesn’t let Polish edit its text directly."
+    }
+
     private func ensureUnchanged(_ target: Target) throws {
-        if let original = target.fullValue {
-            guard let current = string(target.element, kAXValueAttribute), TextGuard.unchanged(original: original, current: current) else {
+        if let original = target.fullValue, let element = target.element {
+            guard let current = string(element, kAXValueAttribute), TextGuard.unchanged(original: original, current: current) else {
                 throw RewriteError.message("Your draft changed while the rewrite was running. Copy the result or run the shortcut again.")
             }
         }
@@ -236,13 +282,14 @@ final class TextAccess {
             try await Task.sleep(for: .milliseconds(180))
         }
         try ensureFocused(target)
+        guard let element = target.element else { return } // ensureFocused already refused a copy-only target.
         try ensureUnchanged(target)
         if let range = target.range {
             // If no full value is exposed, require that the user's selection stayed put.
-            if target.fullValue == nil, self.range(target.element) != range {
+            if target.fullValue == nil, self.range(element) != range {
                 throw RewriteError.message("The selection changed. Select the original text again, or copy the result.")
             }
-            if !setRange(range, on: target.element), self.range(target.element) != range {
+            if !setRange(range, on: element), self.range(element) != range {
                 if target.wholeField && target.fullValue != nil {
                     try ensureFocused(target)
                     sendKey(0) // Select All only inside a verified, unchanged editable field.
@@ -259,14 +306,14 @@ final class TextAccess {
         for attempt in 0..<7 {
             try ensureFocused(target)
             try ensureUnchanged(target)
-            if string(target.element, kAXSelectedTextAttribute) == target.original {
+            if string(element, kAXSelectedTextAttribute) == target.original {
                 selectionMatches = true
                 break
             }
             if attempt < 6 { try await Task.sleep(for: .milliseconds(40)) }
         }
         if !selectionMatches {
-            let copied = try await copySelection(app: target.application, element: target.element)
+            let copied = try await copySelection(app: target.application, element: element)
             guard copied == target.original else {
                 throw RewriteError.message("The selected text no longer matches the original. Copy the result or retry from the field.")
             }
@@ -285,9 +332,12 @@ final class TextAccess {
         clipboard.restore(ifUnchanged: changeCount)
     }
 
-    private func copySelection(app: NSRunningApplication, element: AXUIElement) async throws -> String {
+    /// Copies the host's selection. With an element, that field must still have focus; without one, only the app is checked.
+    private func copySelection(app: NSRunningApplication, element: AXUIElement?) async throws -> String {
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-              let current = focused(app), CFEqual(current, element) else { throw RewriteError.message("The active text field changed. Please retry.") }
+              element.map({ element in focused(app).map { CFEqual($0, element) } ?? false }) ?? true else {
+            throw RewriteError.message("The active text field changed. Please retry.")
+        }
         let snapshot = ClipboardSnapshot()
         let marker = "polish-" + UUID().uuidString
         NSPasteboard.general.clearContents()
@@ -338,10 +388,14 @@ private struct ClipboardSnapshot {
 
 
 enum CaptureError: LocalizedError {
-    case permission, noApplication, noEditor(String), applicationChanged
+    case permission, permissionStale, noApplication, noEditor(String), applicationChanged
+    var needsAccessibility: Bool {
+        switch self { case .permission, .permissionStale: return true; default: return false }
+    }
     var title: String {
         switch self {
         case .permission: return "Accessibility access needed"
+        case .permissionStale: return "Turn Accessibility on again"
         case .noApplication: return "Return to your editor"
         case .noEditor: return "Couldn’t read this editor"
         case .applicationChanged: return "The active app changed"
@@ -350,8 +404,9 @@ enum CaptureError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permission: return "Enable Polish in System Settings → Privacy & Security → Accessibility. If it’s already enabled, quit and reopen Polish."
+        case .permissionStale: return "macOS is still using the permission from an earlier copy of Polish. In Accessibility settings, remove Polish with the – button, add this copy again, then reopen Polish."
         case .noApplication: return "Place the cursor in the text you want to rewrite, then press your shortcut."
-        case .noEditor(let app): return "\(app) hasn’t exposed its focused text field yet. Click inside the draft and try the shortcut again, or select the text first."
+        case .noEditor(let app): return "\(app) didn’t share the text under your cursor. Select the passage you want to rewrite, then press the shortcut again."
         case .applicationChanged: return "Keep the original editor active while Polish reads your text, then try again."
         }
     }
