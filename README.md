@@ -13,8 +13,8 @@
 
 Polish is a small, native menu-bar app. Select text in Mail, Slack, Chrome, an AI chat, or almost any editor, press a shortcut, and Polish rewrites it in place using Google's Gemini Live API with your own API key.
 
-- **⌥⌘G — Correct grammar.** Fixes spelling, grammar, and punctuation while keeping your tone, language, and formatting.
-- **⌥⌘P — Refine prompt.** Turns a rough request into a clear, well-structured prompt for an AI assistant, without inventing details.
+- **⌃⌥G — Correct grammar.** Fixes spelling, grammar, and punctuation while keeping your tone, language, and formatting.
+- **⌃⌥P — Refine prompt.** Turns a rough request into a clear, well-structured prompt for an AI assistant, without inventing details.
 - **Review or auto-apply.** Edit the result in a small popup before applying, or let Polish replace the text directly.
 - **Stays out of the way.** No account, no backend server, no analytics, no microphone. It never presses Return or sends a message for you, and the app's normal Undo still works.
 - **Local history** of your last 80 rewrites, plus configurable shortcuts and launch at login.
@@ -63,7 +63,7 @@ The default model is `gemini-3.8-live`. You can change it in **Settings → Gemi
 ## Use
 
 1. Select text in any app. If nothing is selected, Polish uses the whole focused text field when it can read it.
-2. Press **⌥⌘G** to correct grammar or **⌥⌘P** to refine a prompt. A small indicator appears while Gemini works; use its cancel button to stop.
+2. Press **⌃⌥G** (Control–Option–G) to correct grammar or **⌃⌥P** (Control–Option–P) to refine a prompt. A small indicator appears while Gemini works; use its cancel button to stop.
 3. In review mode, edit the result if you like, then press **Return** to apply or click **Copy**. In automatic mode the text is replaced directly.
 
 Switch the review popup to **Changes** to see exactly which words were edited. Recent rewrites are in the menu-bar menu.

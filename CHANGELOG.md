@@ -4,6 +4,10 @@ Notable changes to Polish are listed here. Versions follow [Semantic Versioning]
 
 ## [Unreleased]
 
+### Changed
+
+- Default shortcuts are now ⌃⌥G (Control–Option–G) for Correct grammar and ⌃⌥P (Control–Option–P) for Refine prompt. Shortcuts you already recorded are kept; use Restore defaults in Settings to switch.
+
 ### Fixed
 
 - Replacing text in web editors (Chrome, Electron apps) no longer fails with "The selected text no longer matches the original" when only spacing or paragraph breaks are reported differently; a whole field is re-selected with Select All when needed.

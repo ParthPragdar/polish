@@ -8,8 +8,8 @@ struct Shortcut: Codable, Equatable {
     var key: UInt32
     var modifiers: UInt32
     var label: String
-    static let grammar = Shortcut(key: 5, modifiers: UInt32(cmdKey | optionKey), label: "⌥⌘G")
-    static let prompt = Shortcut(key: 35, modifiers: UInt32(cmdKey | optionKey), label: "⌥⌘P")
+    static let grammar = Shortcut(key: 5, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥G")
+    static let prompt = Shortcut(key: 35, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥P")
 }
 
 @MainActor
