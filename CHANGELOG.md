@@ -16,6 +16,7 @@ First public release.
 - Configurable global shortcuts and launch at login.
 - Setup checklist in Settings, a labeled progress pill, and a brief “Replaced · ⌘Z to undo” confirmation.
 - If a result can't be pasted safely, it is copied for you to paste with ⌘V; apps that don't expose their text can still rewrite a selection and copy the result.
+- Replacement in web editors (Chrome, Electron apps) tolerates how they report spaces and paragraph breaks, and re-selects a whole field with Select All when needed.
 - Detects an Accessibility permission left over from an earlier build and explains how to renew it.
 - Dark interface built around an Activity dashboard (rewrites by weekday and by app, words polished), a History calendar with search, and one Settings screen.
 - A Changes view that highlights exactly which words a rewrite changed, in the review popup and in History.

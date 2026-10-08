@@ -300,21 +300,18 @@ final class TextAccess {
                 }
             }
         }
-        // Web editors may acknowledge AXSelectedTextRange before publishing the new
-        // selection. Wait briefly before treating a stale value as a changed draft.
-        var selectionMatches = false
-        for attempt in 0..<7 {
+        var selectionMatches = try await selectionMatchesOriginal(target, element)
+        if !selectionMatches, target.wholeField, target.fullValue != nil {
+            // Chromium editors can map AX offsets imperfectly across paragraphs, selecting slightly
+            // too little of a multi-paragraph field. Select All is exact for a verified, unchanged field.
             try ensureFocused(target)
             try ensureUnchanged(target)
-            if string(element, kAXSelectedTextAttribute) == target.original {
-                selectionMatches = true
-                break
-            }
-            if attempt < 6 { try await Task.sleep(for: .milliseconds(40)) }
+            sendKey(0)
+            selectionMatches = try await selectionMatchesOriginal(target, element)
         }
         if !selectionMatches {
             let copied = try await copySelection(app: target.application, element: element)
-            guard copied == target.original else {
+            guard TextGuard.sameText(copied, target.original) else {
                 throw RewriteError.message("The selected text no longer matches the original. Copy the result or retry from the field.")
             }
         }
@@ -330,6 +327,18 @@ final class TextAccess {
         // Once paste is sent, preserve the clipboard even if the caller is cancelled.
         try? await Task.sleep(for: .milliseconds(700))
         clipboard.restore(ifUnchanged: changeCount)
+    }
+
+    /// Web editors may acknowledge AXSelectedTextRange before publishing the new selection,
+    /// so poll briefly before treating a stale value as a changed draft.
+    private func selectionMatchesOriginal(_ target: Target, _ element: AXUIElement) async throws -> Bool {
+        for attempt in 0..<10 {
+            try ensureFocused(target)
+            try ensureUnchanged(target)
+            if let selected = string(element, kAXSelectedTextAttribute), TextGuard.sameText(selected, target.original) { return true }
+            if attempt < 9 { try await Task.sleep(for: .milliseconds(50)) }
+        }
+        return false
     }
 
     /// Copies the host's selection. With an element, that field must still have focus; without one, only the app is checked.

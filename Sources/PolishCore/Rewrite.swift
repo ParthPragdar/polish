@@ -128,4 +128,16 @@ public enum TextGuard {
         return string.substring(with: range)
     }
     public static func unchanged(original: String, current: String) -> Bool { original == current }
+
+    /// Whether a re-selected passage is the original, ignoring how the editor reports whitespace.
+    /// Web editors store repeated spaces as non-breaking spaces and report paragraph breaks and
+    /// trailing newlines differently through Accessibility and the clipboard; every word must still match.
+    public static func sameText(_ a: String, _ b: String) -> Bool { comparable(a) == comparable(b) }
+    static func comparable(_ text: String) -> String {
+        // U+FFFC stands in for embedded objects; U+200B and U+FEFF are invisible.
+        let invisible: Set<Character> = ["\u{FFFC}", "\u{200B}", "\u{FEFF}"]
+        return text.filter { !invisible.contains($0) }
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+    }
 }

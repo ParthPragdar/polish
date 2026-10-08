@@ -45,3 +45,18 @@ final class RewriteTests: XCTestCase {
         XCTAssertFalse(TextGuard.unchanged(original: "Draft", current: ""))
     }
 }
+
+final class TextGuardSameTextTests: XCTestCase {
+    func testIgnoresHowEditorsReportWhitespace() {
+        let original = "first line\n\nsecond  line"
+        XCTAssertTrue(TextGuard.sameText(original, "first line\nsecond \u{00A0}line"))     // Chromium non-breaking space, one newline
+        XCTAssertTrue(TextGuard.sameText(original, "first line\r\n\r\n\r\nsecond line\n")) // CRLF, extra blank line, trailing newline
+        XCTAssertTrue(TextGuard.sameText(original, "\u{FEFF}first line\u{FFFC}\nsecond line"))
+    }
+
+    func testStillRejectsDifferentWords() {
+        XCTAssertFalse(TextGuard.sameText("first line second line", "first line second"))
+        XCTAssertFalse(TextGuard.sameText("draft one", "draft two"))
+        XCTAssertFalse(TextGuard.sameText("firstline", "first line"))
+    }
+}
