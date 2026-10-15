@@ -45,11 +45,11 @@ struct OverviewView: View {
             .padding(.horizontal, PolishDesign.pageInset)
 
             Rectangle().fill(PolishDesign.hairline).frame(height: 1)
-            HStack(spacing: 40) {
+            HStack(spacing: 16) {
                 StatTile(systemName: "text.word.spacing", value: stats.words.formatted(), caption: "Words\npolished")
                 StatTile(systemName: PolishDesign.symbol(for: .grammar), value: stats.overall.grammar.formatted(), caption: "Grammar\nfixes", tint: PolishDesign.green)
                 StatTile(systemName: PolishDesign.symbol(for: .prompt), value: stats.overall.prompt.formatted(), caption: "Prompts\nrefined", tint: PolishDesign.orange)
-                Spacer(minLength: 0)
+                StatTile(systemName: PolishDesign.symbol(for: .english), value: stats.overall.english.formatted(), caption: "English\nrewrites", tint: PolishDesign.blue)
             }
             .padding(.horizontal, PolishDesign.pageInset).frame(height: 96)
         }
@@ -69,8 +69,9 @@ struct OverviewView: View {
             VStack(spacing: 14) {
                 Text("Your first rewrite will appear here").font(.system(size: 15, weight: .semibold))
                 HStack(spacing: 18) {
-                    shortcut(settings.grammar.label, RewriteMode.grammar.title)
-                    shortcut(settings.prompt.label, RewriteMode.prompt.title)
+                    ForEach(RewriteMode.allCases, id: \.self) { mode in
+                        shortcut(settings.shortcut(for: mode).label, mode.title)
+                    }
                 }
             }
             .padding(.horizontal, 22).padding(.vertical, 18)
@@ -164,8 +165,7 @@ struct RadarChart: View {
         return VStack(alignment: .leading, spacing: 5) {
             Text(Self.names[index]).font(.system(size: 15, weight: .bold))
             Text(tally.total == 1 ? "1 rewrite" : "\(tally.total) rewrites").font(.system(size: 14)).foregroundStyle(PolishDesign.secondaryText)
-            if tally.grammar > 0 { modeRow(.grammar, tally.grammar) }
-            if tally.prompt > 0 { modeRow(.prompt, tally.prompt) }
+            ForEach(RewriteMode.allCases.filter { tally[$0] > 0 }, id: \.self) { modeRow($0, tally[$0]) }
         }
         .padding(14).frame(width: 190, alignment: .leading)
         .darkCard(radius: 12, fill: Color(white: 0.25))
@@ -179,7 +179,7 @@ struct RadarChart: View {
         }
     }
     private func tooltipPosition(near point: CGPoint, in size: CGSize) -> CGPoint {
-        let width: CGFloat = 190, height: CGFloat = 120
+        let width: CGFloat = 190, height: CGFloat = 145
         let x = point.x > size.width / 2 ? point.x - width / 2 - 18 : point.x + width / 2 + 18
         return CGPoint(x: min(max(x, width / 2), size.width - width / 2),
                        y: min(max(point.y - 30, height / 2), size.height - height / 2))
@@ -191,7 +191,7 @@ struct RadarChart: View {
     private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
 }
 
-/// The apps you polish most, with each bar split into grammar and prompt rewrites.
+/// The apps you polish most, with each bar split by rewrite mode.
 struct AppRanking: View {
     var apps: [RewriteStats.AppUsage]
     var body: some View {
@@ -204,11 +204,8 @@ struct AppRanking: View {
                     GeometryReader { proxy in
                         let width = proxy.size.width * CGFloat(app.tally.total) / CGFloat(peak)
                         HStack(spacing: 2) {
-                            if app.tally.grammar > 0 {
-                                Capsule().fill(PolishDesign.green).frame(width: max(6, width * CGFloat(app.tally.grammar) / CGFloat(app.tally.total)))
-                            }
-                            if app.tally.prompt > 0 {
-                                Capsule().fill(PolishDesign.orange).frame(width: max(6, width * CGFloat(app.tally.prompt) / CGFloat(app.tally.total)))
+                            ForEach(RewriteMode.allCases.filter { app.tally[$0] > 0 }, id: \.self) { mode in
+                                Capsule().fill(PolishDesign.tint(for: mode)).frame(width: max(6, width * CGFloat(app.tally[mode]) / CGFloat(app.tally.total)))
                             }
                         }.frame(height: 8).frame(maxHeight: .infinity)
                     }.frame(height: 28)
@@ -253,11 +250,13 @@ struct StatTile: View {
     var caption: String
     var tint: Color = Color.white.opacity(0.85)
     var body: some View {
-        HStack(spacing: 14) {
-            IconDisc(systemName: systemName, size: 42, tint: tint)
-            Text(value).font(.system(size: 32, weight: .regular).monospacedDigit()).lineLimit(1)
-            Text(caption).font(.system(size: 12)).foregroundStyle(PolishDesign.secondaryText).lineSpacing(1)
+        // Tiles share the row evenly; large values shrink rather than push the captions out.
+        HStack(spacing: 10) {
+            IconDisc(systemName: systemName, size: 36, tint: tint)
+            Text(value).font(.system(size: 30, weight: .regular).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.5)
+            Text(caption).font(.system(size: 12)).foregroundStyle(PolishDesign.secondaryText).lineSpacing(1).fixedSize()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }

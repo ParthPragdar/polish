@@ -37,7 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         status.menu = menu
         rebuildMenu(menu)
         controller.registerHotkeys()
-        controller.hotkeys.onPress = { [weak self] id in self?.controller.run(id == 0 ? .grammar : .prompt) }
+        controller.hotkeys.onPress = { [weak self] id in
+            guard Int(id) < RewriteMode.allCases.count else { return }
+            self?.controller.run(RewriteMode.allCases[Int(id)])
+        }
         // Stay in the menu bar when launched at login; open Settings only while setup is incomplete.
         if TextAccess.status != .granted || !Keychain.hasKey || CommandLine.arguments.contains("--demo") { controller.showSettings() }
         if CommandLine.arguments.contains("--demo") { controller.showDemo() }
@@ -52,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         action("Correct grammar", #selector(grammar))
         action("Refine prompt", #selector(prompt))
+        action("Rewrite in English", #selector(english))
         action("Settings…", #selector(settings))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem.sectionHeader(title: "Recent rewrites"))
@@ -62,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for entry in controller.history.recentItems {
             let preview = entry.preview
             action(String(preview.prefix(52)) + (preview.count > 52 ? "…" : ""), #selector(openHistoryItem(_:)), id: entry.id)
-            menu.items.last?.image = NSImage(systemSymbolName: entry.mode == .grammar ? "text.badge.checkmark" : "sparkles", accessibilityDescription: entry.mode.title)
+            menu.items.last?.image = NSImage(systemSymbolName: PolishDesign.symbol(for: entry.mode), accessibilityDescription: entry.mode.title)
             menu.items.last?.toolTip = "\(entry.mode.title) · \(entry.createdAt.formatted())"
         }
         action("View all history…", #selector(openHistory))
@@ -76,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc func grammar() { controller.run(.grammar) }
     @objc func prompt() { controller.run(.prompt) }
+    @objc func english() { controller.run(.english) }
     @objc func settings() { controller.showSettings(section: "Settings") }
     @objc func quitApp() { NSApplication.shared.terminate(nil) }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -126,7 +131,7 @@ final class AppController: ObservableObject {
     func retry() { run(mode, source: sourceApplication) }
 
     func registerHotkeys() {
-        do { try hotkeys.register(settings.grammar, settings.prompt); shortcutError = "" }
+        do { try hotkeys.register(settings.shortcuts); shortcutError = "" }
         catch { shortcutError = (error as NSError).domain }
     }
     func refreshSetup() {

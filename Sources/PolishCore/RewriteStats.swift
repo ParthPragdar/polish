@@ -5,9 +5,28 @@ public struct RewriteStats: Equatable, Sendable {
     public struct Tally: Equatable, Sendable {
         public var grammar = 0
         public var prompt = 0
-        public var total: Int { grammar + prompt }
-        public init(grammar: Int = 0, prompt: Int = 0) { self.grammar = grammar; self.prompt = prompt }
-        mutating func add(_ mode: RewriteMode) { if mode == .grammar { grammar += 1 } else { prompt += 1 } }
+        public var english = 0
+        public var total: Int { grammar + prompt + english }
+        public init(grammar: Int = 0, prompt: Int = 0, english: Int = 0) { self.grammar = grammar; self.prompt = prompt; self.english = english }
+        public subscript(mode: RewriteMode) -> Int {
+            get {
+                switch mode {
+                case .grammar: grammar
+                case .prompt: prompt
+                case .english: english
+                }
+            }
+            set {
+                switch mode {
+                case .grammar: grammar = newValue
+                case .prompt: prompt = newValue
+                case .english: english = newValue
+                }
+            }
+        }
+        /// The most used mode, preferring the earlier mode on a tie; nil when empty.
+        public var leading: RewriteMode? { total == 0 ? nil : RewriteMode.allCases.max { self[$0] < self[$1] } }
+        mutating func add(_ mode: RewriteMode) { self[mode] += 1 }
     }
     public struct AppUsage: Equatable, Sendable {
         public let name: String

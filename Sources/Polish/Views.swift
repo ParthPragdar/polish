@@ -115,10 +115,12 @@ struct PreferencesView: View {
                             divider
                             shortcutRow(RewriteMode.prompt.title, binding: $settings.prompt)
                             divider
+                            shortcutRow(RewriteMode.english.title, binding: $settings.english)
+                            divider
                             HStack {
                                 Text("Use ⌘ or ⌃ with a key. Escape cancels.").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
                                 Spacer()
-                                Button("Restore defaults") { settings.grammar = .grammar; settings.prompt = .prompt; controller.registerHotkeys() }
+                                Button("Restore defaults") { settings.restoreDefaultShortcuts(); controller.registerHotkeys() }
                                     .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(PolishDesign.green)
                             }.padding(.horizontal, 16).padding(.vertical, 12)
                         }
@@ -348,11 +350,21 @@ struct ResultView: View {
     }
     private var title: String {
         switch controller.phase {
-        case .loading: return controller.mode == .grammar ? "Polishing your words…" : "Refining your prompt…"
+        case .loading:
+            switch controller.mode {
+            case .grammar: return "Polishing your words…"
+            case .prompt: return "Refining your prompt…"
+            case .english: return "Rewriting in English…"
+            }
         case .applying: return "Applying your rewrite…"
         case .idle: return ""
         case .error: return controller.errorTitle
-        case .review: return controller.mode == .grammar ? "Review correction" : "Review prompt"
+        case .review:
+            switch controller.mode {
+            case .grammar: return "Review correction"
+            case .prompt: return "Review prompt"
+            case .english: return "Review English"
+            }
         }
     }
 }

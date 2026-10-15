@@ -7,7 +7,11 @@ struct LoadingIndicator: View {
     private var tint: Color { PolishDesign.tint(for: controller.mode) }
     private var label: String {
         if controller.phase == .applying { return "Applying…" }
-        return controller.mode == .grammar ? "Correcting grammar…" : "Refining prompt…"
+        switch controller.mode {
+        case .grammar: return "Correcting grammar…"
+        case .prompt: return "Refining prompt…"
+        case .english: return "Rewriting in English…"
+        }
     }
     var body: some View {
         HStack(spacing: 12) {

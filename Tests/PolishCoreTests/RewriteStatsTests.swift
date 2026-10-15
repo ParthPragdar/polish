@@ -41,6 +41,27 @@ final class RewriteStatsTests: XCTestCase {
         XCTAssertEqual(stats.apps.first?.tally, .init(grammar: 1, prompt: 1))
     }
 
+    func testEnglishRewritesAreCountedSeparately() {
+        let items = [
+            item(.english, "WhatsApp", "hey maru name parth chhe", day: 5),
+            item(.english, "Slack", "kal milte hai", day: 6),
+            item(.grammar, "Slack", "teh plan", day: 6)
+        ]
+        let stats = RewriteStats(items: items, calendar: calendar)
+        XCTAssertEqual(stats.overall, .init(grammar: 1, english: 2))
+        XCTAssertEqual(stats.overall.total, 3)
+        XCTAssertEqual(stats.overall[.english], 2)
+        XCTAssertEqual(stats.apps.first?.tally, .init(grammar: 1, english: 1))
+        XCTAssertEqual(stats.weekdays[0], .init(english: 1))
+    }
+
+    func testLeadingModePrefersEarlierModeOnTies() {
+        XCTAssertNil(RewriteStats.Tally().leading)
+        XCTAssertEqual(RewriteStats.Tally(grammar: 1, prompt: 1, english: 1).leading, .grammar)
+        XCTAssertEqual(RewriteStats.Tally(prompt: 2, english: 2).leading, .prompt)
+        XCTAssertEqual(RewriteStats.Tally(grammar: 1, english: 3).leading, .english)
+    }
+
     func testWeekdayIndexIgnoresFirstWeekday() {
         var sundayFirst = calendar; sundayFirst.firstWeekday = 1
         var mondayFirst = calendar; mondayFirst.firstWeekday = 2

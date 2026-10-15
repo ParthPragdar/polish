@@ -2,7 +2,7 @@ import AppKit
 import PolishCore
 import SwiftUI
 
-/// Dark charcoal surfaces, quiet gray type, and two signal colors: green for grammar, orange for prompts.
+/// Dark charcoal surfaces, quiet gray type, and a signal color per mode: green for grammar, orange for prompts, blue for English.
 enum PolishDesign {
     static let window = Color(white: 0.155)
     static let surface = Color(white: 0.215)
@@ -13,14 +13,33 @@ enum PolishDesign {
     static let tertiaryText = Color.white.opacity(0.32)
     static let green = Color(red: 0.30, green: 0.80, blue: 0.42)
     static let orange = Color(red: 1.0, green: 0.62, blue: 0.26)
+    static let blue = Color(red: 0.36, green: 0.66, blue: 1.0)
     static let red = Color(red: 1.0, green: 0.42, blue: 0.40)
     static let cardRadius: CGFloat = 14
     static let popupRadius: CGFloat = 18
     static let pageInset: CGFloat = 28
 
-    static func tint(for mode: RewriteMode) -> Color { mode == .grammar ? green : orange }
-    static func symbol(for mode: RewriteMode) -> String { mode == .grammar ? "text.badge.checkmark" : "sparkles" }
-    static func shortTitle(for mode: RewriteMode) -> String { mode == .grammar ? "Grammar" : "Prompt" }
+    static func tint(for mode: RewriteMode) -> Color {
+        switch mode {
+        case .grammar: green
+        case .prompt: orange
+        case .english: blue
+        }
+    }
+    static func symbol(for mode: RewriteMode) -> String {
+        switch mode {
+        case .grammar: "text.badge.checkmark"
+        case .prompt: "sparkles"
+        case .english: "globe"
+        }
+    }
+    static func shortTitle(for mode: RewriteMode) -> String {
+        switch mode {
+        case .grammar: "Grammar"
+        case .prompt: "Prompt"
+        case .english: "English"
+        }
+    }
 }
 
 extension View {

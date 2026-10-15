@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import PolishCore
 import Security
 import ServiceManagement
 import SwiftUI
@@ -10,6 +11,7 @@ struct Shortcut: Codable, Equatable {
     var label: String
     static let grammar = Shortcut(key: 5, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥G")
     static let prompt = Shortcut(key: 35, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥P")
+    static let english = Shortcut(key: 14, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥E")
 }
 
 @MainActor
@@ -18,13 +20,25 @@ final class Settings: ObservableObject {
     @Published var model: String { didSet { defaults.set(model, forKey: "model") } }
     @Published var grammar: Shortcut { didSet { save(grammar, "grammar") } }
     @Published var prompt: Shortcut { didSet { save(prompt, "prompt") } }
+    @Published var english: Shortcut { didSet { save(english, "english") } }
     private let defaults = UserDefaults.standard
     init() {
         autoApply = defaults.bool(forKey: "autoApply")
         model = defaults.string(forKey: "model") ?? "gemini-3.8-live"
         grammar = defaults.data(forKey: "grammar").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .grammar
         prompt = defaults.data(forKey: "prompt").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .prompt
+        english = defaults.data(forKey: "english").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .english
     }
+    /// One shortcut per mode, in `RewriteMode.allCases` order; hotkey IDs are indexes into it.
+    var shortcuts: [Shortcut] { RewriteMode.allCases.map(shortcut(for:)) }
+    func shortcut(for mode: RewriteMode) -> Shortcut {
+        switch mode {
+        case .grammar: grammar
+        case .prompt: prompt
+        case .english: english
+        }
+    }
+    func restoreDefaultShortcuts() { grammar = .grammar; prompt = .prompt; english = .english }
     private func save(_ value: Shortcut, _ key: String) { defaults.set(try? JSONEncoder().encode(value), forKey: key) }
 }
 
@@ -76,12 +90,12 @@ final class Hotkeys {
         }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
     func suspend() { refs.forEach { UnregisterEventHotKey($0) }; refs.removeAll() }
-    func register(_ grammar: Shortcut, _ prompt: Shortcut) throws {
+    func register(_ shortcuts: [Shortcut]) throws {
         refs.forEach { UnregisterEventHotKey($0) }; refs.removeAll()
-        guard grammar.key != prompt.key || grammar.modifiers != prompt.modifiers else {
-            throw NSError(domain: "Choose two different shortcuts.", code: 1)
+        guard Set(shortcuts.map { "\($0.key)-\($0.modifiers)" }).count == shortcuts.count else {
+            throw NSError(domain: "Each action needs its own shortcut. Record a different combination.", code: 1)
         }
-        for (index, shortcut) in [grammar, prompt].enumerated() {
+        for (index, shortcut) in shortcuts.enumerated() {
             var ref: EventHotKeyRef?
             let status = RegisterEventHotKey(shortcut.key, shortcut.modifiers, EventHotKeyID(signature: 0x504F4C49, id: UInt32(index)), GetApplicationEventTarget(), 0, &ref)
             guard status == noErr, let ref else {

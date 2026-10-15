@@ -16,6 +16,7 @@ Notable changes to Polish are listed here. Versions follow [Semantic Versioning]
 
 ### Added
 
+- Rewrite in English (⌃⌥E): turns text written in any language, several mixed languages, or a language typed in Latin letters (such as `hey maru name parth chhe`) into grammatically correct, natural English. It has its own shortcut, menu item, color in Activity and History, and counter on the Activity screen.
 - README banner and screenshots.
 
 ## [0.1.0] - 2026-10-08

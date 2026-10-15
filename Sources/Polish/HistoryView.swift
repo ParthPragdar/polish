@@ -150,8 +150,7 @@ struct CalendarMonth: View {
                 }
             }
             HStack(spacing: 14) {
-                legend(PolishDesign.green, "Grammar")
-                legend(PolishDesign.orange, "Prompt")
+                ForEach(RewriteMode.allCases, id: \.self) { legend(PolishDesign.tint(for: $0), PolishDesign.shortTitle(for: $0)) }
             }.padding(.top, 4)
         }
         .padding(16).darkCard()
@@ -162,7 +161,7 @@ struct CalendarMonth: View {
         let isSelected = day.map { calendar.isDate($0, inSameDayAs: date) } ?? false
         let isToday = calendar.isDateInToday(date)
         let isFuture = date > Date()
-        let tint: Color? = tally.map { $0.grammar >= $0.prompt ? PolishDesign.green : PolishDesign.orange }
+        let tint: Color? = tally?.leading.map(PolishDesign.tint(for:))
         return Button { day = isSelected ? nil : date } label: {
             ZStack(alignment: .bottomTrailing) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
