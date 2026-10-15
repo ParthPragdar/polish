@@ -2,7 +2,7 @@
 
 Notable changes to Polish are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.1] - 2026-10-15
 
 ### Changed
 
@@ -38,5 +38,5 @@ First public release.
 - A Changes view that highlights exactly which words a rewrite changed, in the review popup and in History.
 - Universal (Apple Silicon and Intel) release builds for macOS 14 or later.
 
-[Unreleased]: https://github.com/ParthPragdar/polish/compare/v0.1.0...HEAD
+[0.1.1]: https://github.com/ParthPragdar/polish/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ParthPragdar/polish/releases/tag/v0.1.0
