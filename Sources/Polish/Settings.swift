@@ -12,6 +12,7 @@ struct Shortcut: Codable, Equatable {
     static let grammar = Shortcut(key: 5, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥G")
     static let prompt = Shortcut(key: 35, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥P")
     static let english = Shortcut(key: 14, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥E")
+    static let translate = Shortcut(key: 17, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥T")
 }
 
 @MainActor
@@ -21,6 +22,7 @@ final class Settings: ObservableObject {
     @Published var grammar: Shortcut { didSet { save(grammar, "grammar") } }
     @Published var prompt: Shortcut { didSet { save(prompt, "prompt") } }
     @Published var english: Shortcut { didSet { save(english, "english") } }
+    @Published var translate: Shortcut { didSet { save(translate, "translate") } }
     private let defaults = UserDefaults.standard
     init() {
         autoApply = defaults.bool(forKey: "autoApply")
@@ -28,9 +30,10 @@ final class Settings: ObservableObject {
         grammar = defaults.data(forKey: "grammar").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .grammar
         prompt = defaults.data(forKey: "prompt").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .prompt
         english = defaults.data(forKey: "english").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .english
+        translate = defaults.data(forKey: "translate").flatMap { try? JSONDecoder().decode(Shortcut.self, from: $0) } ?? .translate
     }
-    /// One shortcut per mode, in `RewriteMode.allCases` order; hotkey IDs are indexes into it.
-    var shortcuts: [Shortcut] { RewriteMode.allCases.map(shortcut(for:)) }
+    /// One shortcut per mode, in `RewriteMode.allCases` order, then Translate to Gujarati; hotkey IDs are indexes into it.
+    var shortcuts: [Shortcut] { RewriteMode.allCases.map(shortcut(for:)) + [translate] }
     func shortcut(for mode: RewriteMode) -> Shortcut {
         switch mode {
         case .grammar: grammar
@@ -38,7 +41,7 @@ final class Settings: ObservableObject {
         case .english: english
         }
     }
-    func restoreDefaultShortcuts() { grammar = .grammar; prompt = .prompt; english = .english }
+    func restoreDefaultShortcuts() { grammar = .grammar; prompt = .prompt; english = .english; translate = .translate }
     private func save(_ value: Shortcut, _ key: String) { defaults.set(try? JSONEncoder().encode(value), forKey: key) }
 }
 

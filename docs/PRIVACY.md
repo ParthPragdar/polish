@@ -6,6 +6,8 @@ Invoking a rewrite sends the requested selection or field text, rewrite instruct
 
 Google's processing and retention are governed by its [Gemini API terms](https://ai.google.dev/gemini-api/terms) and the settings/terms applicable to your account. API use may incur charges. Polish's source-code license does not govern Google's service.
 
+Translate to Gujarati sends only the selected text and translation instructions in the same way. Because it also works on read-only text, such as web pages and messages other people wrote, it can send text that isn't yours; select only what you want translated. Translations are not saved to History.
+
 Only password fields identified as secure by Accessibility are excluded. Secrets or personal information in ordinary editors are still text and can be sent if you invoke a rewrite. Use disposable samples for testing and reporting problems.
 
 ## Storage on this Mac

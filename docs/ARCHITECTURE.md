@@ -13,9 +13,10 @@ Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDel
 | `Sources/Polish/OverviewView.swift` | Activity dashboard: weekday radar, app ranking, stat tiles, setup checklist |
 | `Sources/Polish/HistoryView.swift` | History calendar, search, list, detail with Changes view, confirmed clearing |
 | `Sources/Polish/LoadingIndicator.swift` | Cancellable progress UI with Reduce Motion support |
+| `Sources/Polish/TranslationView.swift` | Read-only Gujarati translation popup and its errors |
 | `Sources/Polish/AutomaticApplyNotice.swift` | Nonactivating notice after automatic replacement fails |
 | `Sources/Polish/DesignSystem.swift` | Dark palette, cards, pills, segmented control, buttons, diff rendering |
-| `Sources/PolishCore/Rewrite.swift` | Rewrite modes (grammar, prompt, English) and their instructions, Live client, response validation, UTF-16 text guards |
+| `Sources/PolishCore/Rewrite.swift` | Rewrite modes (grammar, prompt, English) and their instructions, the Gujarati translation instruction, Live client, response validation, UTF-16 text guards |
 | `Sources/PolishCore/FocusLookup.swift` | Bounded focus retries and cancellation |
 | `Sources/PolishCore/RewriteDelivery.swift` | Automatic versus review delivery policy |
 | `Sources/PolishCore/RewriteHistory.swift` | Retention, atomic persistence, edited results, storage errors |
@@ -34,6 +35,17 @@ Polish is a macOS accessory app. `PolishApp` starts AppKit's event loop, `AppDel
 7. Before pasting, verify the original app, field, unchanged draft, and restored selection. Use the host's normal paste action, then restore the previous clipboard only if it has not changed.
 
 Errors and cancellations do not create completed history entries. A completed rewrite remains in history even when automatic application fails. Edited results update the same entry after Copy or successful Apply, preserving its original timestamp. Preview actions never record history or modify a host field.
+
+## Translation flow
+
+Translate to Gujarati is a separate action, not a rewrite mode: its hotkey ID follows the modes' IDs.
+
+1. Capture the foreground application and the pointer location at shortcut time.
+2. Read the focused element's selected text through Accessibility, whether or not it is editable; refuse secure fields. If no selection is reported (common for web pages), copy the selection with ⌘C and restore the clipboard. There is no whole-field fallback: only selected text is sent.
+3. Send it to Gemini with the translation instruction, using the same Live protocol and validation as a rewrite.
+4. Show a key, nonactivating panel beside the selection's bounds, or beside the pointer when the app reports none. Global and local mouse-down monitors close it on any click outside it; Escape also closes it.
+
+Translations never modify a host field and never create History entries.
 
 ## Gemini Live protocol
 

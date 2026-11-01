@@ -117,6 +117,8 @@ struct PreferencesView: View {
                             divider
                             shortcutRow(RewriteMode.english.title, binding: $settings.english)
                             divider
+                            shortcutRow("Translate to Gujarati", binding: $settings.translate)
+                            divider
                             HStack {
                                 Text("Use ⌘ or ⌃ with a key. Escape cancels.").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
                                 Spacer()

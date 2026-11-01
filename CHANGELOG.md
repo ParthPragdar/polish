@@ -2,6 +2,12 @@
 
 Notable changes to Polish are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Translate to Gujarati (⌃⌥T): select text in any app and language, including read-only text such as web pages, PDFs, and messages, and read its meaning in simple Gujarati in a popup that closes when you click outside it or press Esc. The popup can be copied from; nothing is replaced and translations are not saved to History. The shortcut can be changed in Settings.
+
 ## [0.1.1] - 2026-10-15
 
 ### Changed

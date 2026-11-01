@@ -16,6 +16,13 @@ final class TextAccess {
         var appName: String { application.localizedName ?? "your app" }
         var canReplace: Bool { element != nil }
     }
+    /// What Translate to Gujarati reads. Nothing is ever written back, so no editable field is needed.
+    struct Selection {
+        let text: String
+        let appName: String
+        /// The selection's bounds when the app reports them; nil means place the popup by the pointer.
+        let anchor: CGRect?
+    }
 
     enum AccessStatus { case granted, denied, stale }
     /// A grant made for an earlier build can leave AXIsProcessTrusted() true while macOS still
@@ -206,17 +213,7 @@ final class TextAccess {
             }
             element = resolved
         } catch FocusLookupError.applicationChanged { throw CaptureError.applicationChanged }
-        // Check ancestors too: custom secure editors may focus a child of the password field.
-        var ancestor: AXUIElement? = element
-        for _ in 0..<6 {
-            guard let current = ancestor else { break }
-            let role = string(current, kAXRoleAttribute) ?? ""
-            let subrole = string(current, kAXSubroleAttribute) ?? ""
-            guard subrole != kAXSecureTextFieldSubrole, !role.lowercased().contains("secure") else {
-                throw RewriteError.message("Password fields cannot be rewritten.")
-            }
-            ancestor = elementAttribute(current, kAXParentAttribute)
-        }
+        guard !isSecure(element) else { throw RewriteError.message("Password fields cannot be rewritten.") }
         let full = string(element, kAXValueAttribute)
         let selectedRange = range(element)
         let selected = string(element, kAXSelectedTextAttribute)
@@ -247,6 +244,64 @@ final class TextAccess {
         let target = Target(application: app, element: element, original: text, fullValue: full, range: replacementRange, wholeField: whole, anchor: anchor(for: element, selectedRange: selectedRange, app: app))
         try ensureFocused(target)
         return target
+    }
+
+    /// Reads the selection for translation, including read-only text such as web pages, PDFs, and messages.
+    /// Unlike capture(), it never falls back to the whole field: only what the user selected is sent.
+    func captureSelection(from app: NSRunningApplication?) async throws -> Selection {
+        switch Self.status {
+        case .denied: throw CaptureError.permission
+        case .stale: throw CaptureError.permissionStale
+        case .granted: break
+        }
+        guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
+            throw RewriteError.message("Select text in another app, then press the shortcut.")
+        }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else {
+            throw CaptureError.applicationChanged
+        }
+        prepareAccessibility(app)
+        var element: AXUIElement?
+        for owner in [AXUIElementCreateSystemWide(), AXUIElementCreateApplication(app.processIdentifier)] {
+            if let candidate = elementAttribute(owner, kAXFocusedUIElementAttribute), belongs(candidate, to: app) { element = candidate; break }
+        }
+        if let element, isSecure(element) { throw RewriteError.message("Password fields cannot be translated.") }
+        var text = element.flatMap { string($0, kAXSelectedTextAttribute) } ?? ""
+        var anchor: CGRect?
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Web pages and many read-only views don't report their selection; Copy still reads it.
+            text = try await copySelection(app: app, element: nil)
+        } else if let element {
+            anchor = selectionAnchor(for: element)
+        }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw RewriteError.message("Select the text you want to translate, then press the shortcut again.")
+        }
+        guard text.utf16.count <= 12000 else { throw RewriteError.message("Select a smaller passage (up to 12,000 characters).") }
+        return Selection(text: text, appName: app.localizedName ?? "your app", anchor: anchor)
+    }
+    /// Only the selection's own bounds: a whole web page or document is a worse anchor than the pointer.
+    private func selectionAnchor(for element: AXUIElement) -> CGRect? {
+        guard let primary = NSScreen.screens.first else { return nil }
+        func convert(_ rect: CGRect?) -> CGRect? {
+            rect.map { PopupPlacement.appKitRect(fromAX: $0, primaryScreenTop: primary.frame.maxY) }
+        }
+        guard let caret = PopupPlacement.anchor(caret: convert(selectionBounds(for: element, range: range(element))), field: nil, window: nil, screens: NSScreen.screens.map(\.frame)) else { return nil }
+        // Ignore stale selection rectangles that fall outside the element.
+        if let field = convert(frame(of: element)), !field.insetBy(dx: -4, dy: -4).intersects(caret) { return nil }
+        return caret
+    }
+    /// Checks ancestors too: custom secure editors may focus a child of the password field.
+    private func isSecure(_ element: AXUIElement) -> Bool {
+        var ancestor: AXUIElement? = element
+        for _ in 0..<6 {
+            guard let current = ancestor else { break }
+            let role = string(current, kAXRoleAttribute) ?? ""
+            let subrole = string(current, kAXSubroleAttribute) ?? ""
+            if subrole == kAXSecureTextFieldSubrole || role.lowercased().contains("secure") { return true }
+            ancestor = elementAttribute(current, kAXParentAttribute)
+        }
+        return false
     }
 
     /// Terminals, canvas editors, and some web apps expose no editable field. A plain Copy of

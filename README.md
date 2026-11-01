@@ -16,6 +16,7 @@ Polish is a small, native menu-bar app. Select text in Mail, Slack, Chrome, an A
 - **⌃⌥G — Correct grammar.** Fixes spelling, grammar, and punctuation while keeping your tone, language, and formatting.
 - **⌃⌥P — Refine prompt.** Turns a rough request into a clear, well-structured prompt for an AI assistant, without inventing details.
 - **⌃⌥E — Rewrite in English.** Turns text in any language, a mix of languages, or a language typed in Latin letters into correct, natural English. For example, `hey maru name parth chhe` becomes `Hey, my name is Parth.`
+- **⌃⌥T — Translate to Gujarati.** Select text in any app, including web pages, PDFs, and messages you can't edit, and read its meaning in Gujarati in a small popup. Click anywhere outside the popup to close it. Nothing is replaced or saved.
 - **Review or auto-apply.** Edit the result in a small popup before applying, or let Polish replace the text directly.
 - **Stays out of the way.** No account, no backend server, no analytics, no microphone. It never presses Return or sends a message for you, and the app's normal Undo still works.
 - **Local history** of your last 80 rewrites, plus configurable shortcuts and launch at login.
@@ -65,7 +66,8 @@ The default model is `gemini-3.8-live`. You can change it in **Settings → Gemi
 
 1. Select text in any app. If nothing is selected, Polish uses the whole focused text field when it can read it.
 2. Press **⌃⌥G** (Control–Option–G) to correct grammar, **⌃⌥P** (Control–Option–P) to refine a prompt, or **⌃⌥E** (Control–Option–E) to rewrite it in English. A small indicator appears while Gemini works; use its cancel button to stop.
-3. In review mode, edit the result if you like, then press **Return** to apply or click **Copy**. In automatic mode the text is replaced directly.
+3. To understand text instead of changing it, select it anywhere and press **⌃⌥T** (Control–Option–T). The Gujarati translation appears in a popup next to the selection or the pointer; select or copy it if you like, then click outside the popup or press **Esc** to close it.
+4. In review mode, edit the result if you like, then press **Return** to apply or click **Copy**. In automatic mode the text is replaced directly.
 
 Switch the review popup to **Changes** to see exactly which words were edited. Recent rewrites are in the menu-bar menu.
 
@@ -75,7 +77,7 @@ Polish only replaces text if the same app, field, and draft are still there. If 
 
 ## Privacy
 
-- Each rewrite sends only the selected or focused text, directly from your Mac to Google's Gemini API. No screenshots, audio, app names, or history are sent, and Polish has no analytics.
+- Each rewrite or translation sends only the selected or focused text, directly from your Mac to Google's Gemini API. No screenshots, audio, app names, or history are sent, and Polish has no analytics.
 - Fields that macOS marks as password fields are never read. Other fields can still contain sensitive text, so choose what you rewrite.
 - The API key is kept in Keychain. History (original text, result, app name, time) is stored unencrypted at `~/Library/Application Support/Polish/history.json` and can be cleared from **History** (the trash button).
 

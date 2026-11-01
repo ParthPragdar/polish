@@ -38,8 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu(menu)
         controller.registerHotkeys()
         controller.hotkeys.onPress = { [weak self] id in
-            guard Int(id) < RewriteMode.allCases.count else { return }
-            self?.controller.run(RewriteMode.allCases[Int(id)])
+            let modes = RewriteMode.allCases
+            if Int(id) < modes.count { self?.controller.run(modes[Int(id)]) }
+            else if Int(id) == modes.count { self?.controller.translate() }
         }
         // Stay in the menu bar when launched at login; open Settings only while setup is incomplete.
         if TextAccess.status != .granted || !Keychain.hasKey || CommandLine.arguments.contains("--demo") { controller.showSettings() }
@@ -56,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         action("Correct grammar", #selector(grammar))
         action("Refine prompt", #selector(prompt))
         action("Rewrite in English", #selector(english))
+        action("Translate to Gujarati", #selector(gujarati))
         action("Settings…", #selector(settings))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem.sectionHeader(title: "Recent rewrites"))
@@ -81,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func grammar() { controller.run(.grammar) }
     @objc func prompt() { controller.run(.prompt) }
     @objc func english() { controller.run(.english) }
+    @objc func gujarati() { controller.translate() }
     @objc func settings() { controller.showSettings(section: "Settings") }
     @objc func quitApp() { NSApplication.shared.terminate(nil) }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -105,6 +108,8 @@ final class AppController: ObservableObject {
     @Published var original = ""
     @Published var error = ""
     @Published var mode: RewriteMode = .grammar
+    /// The current operation is a read-only Gujarati translation rather than a rewrite.
+    @Published private(set) var isTranslation = false
     @Published var destination = ""
     @Published var shortcutError = ""
     @Published var copied = false
@@ -120,6 +125,7 @@ final class AppController: ObservableObject {
     private var settingsWindow: NSWindow?
     private var panel: FloatingPanel?
     private var toast: FloatingPanel?
+    private var outsideClickMonitors: [Any] = []
     private lazy var toolbarItems = MainToolbar(controller: self)
     private var operationID = UUID()
     @Published private(set) var automaticApplyFailed = false
@@ -128,7 +134,7 @@ final class AppController: ObservableObject {
     /// The source app exposes no editable field, so the result can only be copied.
     var copyOnly: Bool { target.map { !$0.canReplace } ?? false }
     var canRetry: Bool { sourceApplication != nil && sourceApplication?.isTerminated == false && !isWorking }
-    func retry() { run(mode, source: sourceApplication) }
+    func retry() { isTranslation ? translate(source: sourceApplication) : run(mode, source: sourceApplication) }
 
     func registerHotkeys() {
         do { try hotkeys.register(settings.shortcuts); shortcutError = "" }
@@ -177,7 +183,7 @@ final class AppController: ObservableObject {
         let requestedApp = source ?? (foreground?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : foreground)
         dismiss()
         currentHistoryID = nil
-        isPreview = false
+        isPreview = false; isTranslation = false
         automaticApplyFailed = false
         self.sourceApplication = requestedApp
         self.mode = mode; result = ""; error = ""; original = ""; copied = false; copiedForPaste = false; target = nil
@@ -226,6 +232,47 @@ final class AppController: ObservableObject {
             if operationID == id { task = nil; isWorking = false }
         }
     }
+    /// Translates the selection to Gujarati and shows it in a popup that closes on any click outside it.
+    /// Nothing is pasted or saved to History.
+    func translate(source: NSRunningApplication? = nil) {
+        guard task == nil else { NSSound.beep(); return }
+        let foreground = NSWorkspace.shared.frontmostApplication
+        let requestedApp = source ?? (foreground?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : foreground)
+        // After selecting with the mouse the pointer sits at the selection, so it's the fallback anchor.
+        let pointer = NSEvent.mouseLocation
+        let pointerAnchor = CGRect(x: pointer.x, y: pointer.y - 8, width: 1, height: 16)
+        dismiss()
+        currentHistoryID = nil
+        isPreview = false; isTranslation = true
+        automaticApplyFailed = false
+        sourceApplication = requestedApp
+        result = ""; error = ""; original = ""; copied = false; copiedForPaste = false; target = nil
+        destination = requestedApp?.localizedName ?? ""
+        errorNeedsSettings = false; isWorking = true; phase = .loading
+        let id = UUID(); operationID = id
+        let model = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        task = Task {
+            var anchor = pointerAnchor
+            do {
+                if let source { source.activate(options: []) }
+                try await Task.sleep(for: .milliseconds(220))
+                let selection = try await access.captureSelection(from: requestedApp)
+                original = selection.text; destination = selection.appName
+                anchor = selection.anchor ?? pointerAnchor
+                showPanel(at: anchor, interactive: false)
+                result = try await GeminiClient().translateToGujarati(selection.text, key: Keychain.read(), model: model)
+                try Task.checkCancellation()
+                isWorking = false
+                phase = .review; showPanel(at: anchor, interactive: true)
+            } catch is CancellationError { }
+            catch {
+                guard operationID == id else { return }
+                presentError(error)
+                phase = .error; showPanel(at: anchor, interactive: true)
+            }
+            if operationID == id { task = nil; isWorking = false }
+        }
+    }
     func apply() {
         if isPreview && task == nil {
             isPreview = false; panel?.orderOut(nil); phase = .idle
@@ -267,13 +314,33 @@ final class AppController: ObservableObject {
         // Do not interrupt a paste while the clipboard is temporarily owned.
         guard phase != .applying else { return }
         task?.cancel(); task = nil; isWorking = false; operationID = UUID(); panel?.orderOut(nil)
+        removeOutsideClickMonitors()
+    }
+    /// A translation is only for reading: any click outside its popup, in any app, closes it.
+    private func dismissOnOutsideClick(_ window: NSWindow) {
+        removeOutsideClickMonitors()
+        let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: clicks, handler: { [weak self] _ in
+            MainActor.assumeIsolated { self?.dismiss() }
+        }) { outsideClickMonitors.append(global) }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: clicks, handler: { [weak self, weak window] event in
+            if event.window !== window { self?.dismiss() }
+            return event
+        }) { outsideClickMonitors.append(local) }
+    }
+    private func removeOutsideClickMonitors() {
+        outsideClickMonitors.forEach(NSEvent.removeMonitor)
+        outsideClickMonitors.removeAll()
     }
     private func showPanel(at anchor: CGRect?, interactive: Bool) {
         panel?.orderOut(nil)
-        let width: CGFloat = automaticApplyFailed ? 320 : (interactive ? 460 : 236)
+        removeOutsideClickMonitors()
+        let width: CGFloat = automaticApplyFailed ? 320 : (interactive ? (isTranslation ? 420 : 460) : 236)
         let root: AnyView
         if automaticApplyFailed {
             root = AnyView(AutomaticApplyNotice(controller: self).frame(width: width))
+        } else if interactive && isTranslation {
+            root = AnyView(TranslationView(controller: self).frame(width: width))
         } else if interactive {
             root = AnyView(ResultView(controller: self).frame(width: width))
         } else {
@@ -289,12 +356,13 @@ final class AppController: ObservableObject {
         window.hidesOnDeactivate = false; window.isReleasedWhenClosed = false
         window.contentView = content
         window.isMovableByWindowBackground = true
-        window.title = "Polish · " + mode.title
+        window.title = "Polish · " + (isTranslation ? "Translate to Gujarati" : mode.title)
         guard let origin = origin(for: size, near: anchor) else { return }
         window.setFrameOrigin(origin)
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { window.alphaValue = 0 }
         if interactive { window.makeKeyAndOrderFront(nil) } else { window.orderFrontRegardless() }
         panel = window
+        if interactive && isTranslation { dismissOnOutsideClick(window) }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.15
             window.animator().alphaValue = 1
@@ -337,13 +405,14 @@ final class AppController: ObservableObject {
     }
     private func presentError(_ failure: Error) {
         error = failure.localizedDescription
-        errorTitle = (failure as? CaptureError)?.title ?? (result.isEmpty ? "Couldn’t finish the rewrite" : "Your rewrite is ready to copy")
+        errorTitle = (failure as? CaptureError)?.title ?? (isTranslation ? "Couldn’t translate" : result.isEmpty ? "Couldn’t finish the rewrite" : "Your rewrite is ready to copy")
         errorNeedsAccessibility = (failure as? CaptureError)?.needsAccessibility ?? false
-        errorNeedsSettings = !errorNeedsAccessibility && (failure as? CaptureError) == nil && target != nil && result.isEmpty
+        // Text was read, so the failure came from Gemini: the key or model in Settings is the likely fix.
+        errorNeedsSettings = !errorNeedsAccessibility && (failure as? CaptureError) == nil && !original.isEmpty && result.isEmpty
     }
     func showLoadingDemo() {
         guard task == nil else { return }
-        dismiss(); isPreview = false; automaticApplyFailed = false; target = nil; currentHistoryID = nil; sourceApplication = nil; copiedForPaste = false
+        dismiss(); isPreview = false; isTranslation = false; automaticApplyFailed = false; target = nil; currentHistoryID = nil; sourceApplication = nil; copiedForPaste = false
         phase = .loading; isWorking = true
         showPanel(at: settingsWindow?.frame, interactive: false)
         panel?.acceptsKeyboardFocus = true
@@ -355,7 +424,7 @@ final class AppController: ObservableObject {
     }
     func showDemo() {
         guard task == nil else { return }
-        automaticApplyFailed = false; isPreview = true
+        automaticApplyFailed = false; isPreview = true; isTranslation = false
         target = nil; currentHistoryID = nil; error = ""; copied = false; copiedForPaste = false; sourceApplication = nil
         mode = .grammar; phase = .review; destination = "Preview"; original = "i has a idea for a better app"; result = "I have an idea for a better app."
         showPanel(at: settingsWindow?.frame, interactive: true)
