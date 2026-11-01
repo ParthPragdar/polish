@@ -8,6 +8,11 @@ Notable changes to Polish are listed here. Versions follow [Semantic Versioning]
 
 - Translate to Gujarati (⌃⌥T): select text in any app and language, including read-only text such as web pages, PDFs, and messages, and read its meaning in simple Gujarati in a popup that closes when you click outside it or press Esc. The popup can be copied from; nothing is replaced and translations are not saved to History. The shortcut can be changed in Settings.
 
+### Fixed
+
+- The loading indicator no longer has its rounded ends cut off when its label is long, such as "Correcting grammar…"; it now widens to fit the label.
+- The title of a failed rewrite whose result is ready to copy is no longer cut off in the review popup.
+
 ## [0.1.1] - 2026-10-15
 
 ### Changed

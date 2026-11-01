@@ -344,10 +344,11 @@ final class AppController: ObservableObject {
         } else if interactive {
             root = AnyView(ResultView(controller: self).frame(width: width))
         } else {
-            root = AnyView(LoadingIndicator(controller: self).frame(width: width, height: 44))
+            // At least the usual width, wider for longer labels: a fixed width clipped the pill's ends.
+            root = AnyView(LoadingIndicator(controller: self).frame(minWidth: width).frame(height: 44).fixedSize())
         }
         let content = NSHostingView(rootView: root)
-        let size = CGSize(width: width, height: content.fittingSize.height)
+        let size = content.fittingSize
         let window = FloatingPanel(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.acceptsKeyboardFocus = interactive
         window.isFloatingPanel = true; window.level = .floating
@@ -405,7 +406,7 @@ final class AppController: ObservableObject {
     }
     private func presentError(_ failure: Error) {
         error = failure.localizedDescription
-        errorTitle = (failure as? CaptureError)?.title ?? (isTranslation ? "Couldn’t translate" : result.isEmpty ? "Couldn’t finish the rewrite" : "Your rewrite is ready to copy")
+        errorTitle = (failure as? CaptureError)?.title ?? (isTranslation ? "Couldn’t translate" : result.isEmpty ? "Couldn’t finish the rewrite" : "Rewrite ready to copy")
         errorNeedsAccessibility = (failure as? CaptureError)?.needsAccessibility ?? false
         // Text was read, so the failure came from Gemini: the key or model in Settings is the likely fix.
         errorNeedsSettings = !errorNeedsAccessibility && (failure as? CaptureError) == nil && !original.isEmpty && result.isEmpty

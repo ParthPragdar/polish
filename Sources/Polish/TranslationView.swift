@@ -44,18 +44,20 @@ struct TranslationView: View {
 
             Rectangle().fill(PolishDesign.hairline).frame(height: 1)
             HStack(spacing: 10) {
+                // The hint wraps before a button does.
                 Text("Click outside or press esc to close").font(.system(size: 11)).foregroundStyle(PolishDesign.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 if !isError {
                     Button { controller.copy() } label: {
                         Label(controller.copied ? "Copied" : "Copy", systemImage: controller.copied ? "checkmark" : "doc.on.doc")
                     }.buttonStyle(PolishButtonStyle())
                 } else if controller.errorNeedsAccessibility {
-                    Button("Open Accessibility Settings") { controller.dismiss(); TextAccess.openAccessibilitySettings() }.buttonStyle(PolishButtonStyle(primary: true))
+                    Button("Open Accessibility Settings") { controller.dismiss(); TextAccess.openAccessibilitySettings() }.buttonStyle(PolishButtonStyle(primary: true)).fixedSize()
                 } else if controller.errorNeedsSettings {
-                    Button("Open Settings") { controller.dismiss(); controller.showSettings(section: "Settings") }.buttonStyle(PolishButtonStyle(primary: true))
+                    Button("Open Settings") { controller.dismiss(); controller.showSettings(section: "Settings") }.buttonStyle(PolishButtonStyle(primary: true)).fixedSize()
                 } else if controller.canRetry {
-                    Button("Try again") { controller.retry() }.buttonStyle(PolishButtonStyle(primary: true))
+                    Button("Try again") { controller.retry() }.buttonStyle(PolishButtonStyle(primary: true)).fixedSize()
                 }
             }
             .font(.system(size: 12, weight: .medium))
